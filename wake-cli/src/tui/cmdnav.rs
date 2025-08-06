@@ -1,5 +1,1 @@
-
-
-pub struct CommandNav {
-    
-}
+pub struct CommandNav {}

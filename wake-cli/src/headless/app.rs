@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use crate::headless::tools::ToolConfig;
 
-use super::tools::{ToolName, list_all_tools, parse_tools_list};
-use wake_core::agent::{Agent, AgentBuilder, AgentError, AgentResult, Brain, LoggingConfig, StdoutEventManager};
+use super::tools::{list_all_tools, parse_tools_list, ToolName};
+use wake_core::agent::{
+    Agent, AgentBuilder, AgentError, AgentResult, Brain, LoggingConfig, StdoutEventManager,
+};
 use wake_core::config::config::WakeConfig;
 use wake_core::runners::coder::coder::CoderBrain;
 use wake_core::runners::searcher::searcher::SearcherBrain;
@@ -15,23 +17,24 @@ pub enum AgentKind {
 }
 
 pub struct AppHeadless {
-    kind: AgentKind
+    kind: AgentKind,
 }
 
 impl AppHeadless {
     pub fn new() -> Self {
         Self {
-            kind: AgentKind::Coder
+            kind: AgentKind::Coder,
         }
     }
 
-    pub async fn run(&self,
+    pub async fn run(
+        &self,
         initial_trace: Vec<ChatMessage>,
-        list_tools: bool, 
-        tools: Option<String>, 
+        list_tools: bool,
+        tools: Option<String>,
         remove: Option<String>,
-        trace: bool
-    ) -> Result<(), Box<dyn std::error::Error>> {   
+        trace: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Configure internal debug logging to file
         /*
         let _ = LoggingConfig::default()
@@ -45,17 +48,23 @@ impl AppHeadless {
             list_all_tools();
             return Ok(());
         }
-    
+
         let (llm_client, model) = WakeConfig::get_llm().await?;
-        eprintln!("\x1b[2m{} on {}\x1b[0m", model, llm_client.provider().name());
-    
+        eprintln!(
+            "\x1b[2m{} on {}\x1b[0m",
+            model,
+            llm_client.provider().name()
+        );
+
         // Validate that we have some input
         if initial_trace.is_empty() {
             eprintln!("Error: Please provide a prompt for the coder agent");
-            eprintln!("Usage: wake \"your prompt here\" or using pipe echo \"your prompt here\" | wake");
+            eprintln!(
+                "Usage: wake \"your prompt here\" or using pipe echo \"your prompt here\" | wake"
+            );
             return Ok(());
         }
-    
+
         // Handle tool selection
         let tools = match (tools, remove) {
             (Some(tools_str), _) => {
@@ -70,7 +79,9 @@ impl AppHeadless {
         };
 
         // Run the agent
-        let model = llm_client.default_model().await
+        let model = llm_client
+            .default_model()
+            .await
             .map_err(|e| format!("Failed to get default model: {}", e))?;
 
         let toolbox = tools.build_toolbox();
@@ -87,26 +98,34 @@ impl AppHeadless {
 
         let result = agent
             .with_event_handler(StdoutEventManager::new())
-            .run().await;
+            .run()
+            .await;
 
         match result {
-            Ok(AgentResult { success, message, trace: agent_trace }) => {
+            Ok(AgentResult {
+                success,
+                message,
+                trace: agent_trace,
+            }) => {
                 if trace {
                     println!("{}", serde_json::to_string_pretty(&agent_trace)?);
                 } else {
                     if let Some(message) = agent_trace.last() {
                         match message {
-                            ChatMessage::Assistant { content: Some(ChatMessageContent::Text(content)), .. } => {
-                                println!("{}",content);
+                            ChatMessage::Assistant {
+                                content: Some(ChatMessageContent::Text(content)),
+                                ..
+                            } => {
+                                println!("{}", content);
                             }
                             ChatMessage::Tool { content, .. } => {
-                                println!("{}",content);
+                                println!("{}", content);
                             }
                             _ => {}
                         }
                     }
                 }
-            },
+            }
             Err(e) => {
                 eprintln!("Agent failed: {}", e);
             }

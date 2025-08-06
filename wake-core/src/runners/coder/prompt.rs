@@ -72,27 +72,26 @@ pub fn coder_next_step() -> String {
     let today = get_today();
     let git_repo = is_git_repo();
     let mut prompt = CODER_PROMPT
-    .replace("working_dir", &working_dir)
-    .replace("is_git_repo", &git_repo.to_string())
-    .replace("platform", &platform)
-    .replace("os_version", &os)
-    .replace("today", &today)
-    .to_string();
+        .replace("working_dir", &working_dir)
+        .replace("is_git_repo", &git_repo.to_string())
+        .replace("platform", &platform)
+        .replace("os_version", &os)
+        .replace("today", &today)
+        .to_string();
 
     if git_repo {
         let git_branch = get_git_branch();
         let git_log = get_git_log();
         let git_status = get_git_status();
         let git_info = CODER_PROMPT_GIT
-        .replace("git_branch", &git_branch)
-        .replace("git_status", &git_status)
-        .replace("git_log", &git_log);
+            .replace("git_branch", &git_branch)
+            .replace("git_status", &git_status)
+            .replace("git_log", &git_log);
         prompt += &git_info;
     }
 
     prompt
 }
-
 
 static TODO_STATUS: &str = r#"
 <todo>
@@ -105,14 +104,13 @@ todoStatus: This is the current status of the todo list
 pub async fn get_todo_read(todo_tool: &Arc<dyn AnyTool>) -> String {
     let todo = todo_tool.execute_json(serde_json::json!({})).await;
     if let ToolResult::Success { output, metadata } = todo {
-        TODO_STATUS.to_string()
-        .replace("todo_list", &output)
+        TODO_STATUS.to_string().replace("todo_list", &output)
     } else {
-        TODO_STATUS.to_string()
-        .replace("todo_list", "the todo list is empty..")
+        TODO_STATUS
+            .to_string()
+            .replace("todo_list", "the todo list is empty..")
     }
 }
-
 
 static CODER_CHECK_GOAL: &str = r#"
 You are an interactive CLI tool called that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user. 
@@ -129,7 +127,6 @@ Though achieving user's objective is the principal objective, it may happen that
 
 If you reply is NO, then you must explain to yourself why upon further investigation you think you can do more in this round.
 "#;
-
 
 pub fn coder_check_goal() -> String {
     CODER_CHECK_GOAL.to_string()

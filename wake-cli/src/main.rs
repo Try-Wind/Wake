@@ -1,31 +1,31 @@
-use headless::app::AppHeadless;
 use clap::{Parser, Subcommand};
+use console::strip_ansi_codes;
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers, EventStream},
+    event::{self, Event, EventStream, KeyCode, KeyEvent, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
     ExecutableCommand,
 };
+use futures::StreamExt;
+use headless::app::AppHeadless;
 use ringbuffer::RingBuffer;
-use console::strip_ansi_codes;
+use std::env;
+use std::io::{self, IsTerminal, Read, Write};
+use std::process::Command;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::{interval, sleep};
+use tui::auth::AppAuth;
+use tui::theme::{apply_gradient, logo, logo_cyan, WAKE_SKY_BLUE, WAKE_WHITE_BLUE};
+use tui::App;
 use wake_core::agent::LoggingConfig;
 use wake_core::config::config::WakeConfig;
 use wake_core::runners::clifixer::fix::clifix;
 use wake_llm::{ChatMessage, ChatMessageContent};
-use tui::auth::AppAuth;
-use tui::theme::{apply_gradient, logo, logo_cyan, WAKE_WHITE_BLUE, WAKE_SKY_BLUE};
-use tui::App;
-use std::env;
-use std::sync::Arc;
-use std::io::{self, IsTerminal, Read, Write};
-use std::process::Command;
-use std::time::Duration;
-use tokio::time::{sleep, interval};
-use futures::StreamExt;
 
-mod headless;
 #[cfg(unix)]
 mod fc;
+mod headless;
 #[cfg(unix)]
 mod shell;
 
@@ -34,11 +34,11 @@ use fc::history::CommandHistoryExt;
 mod tui;
 
 #[cfg(unix)]
+use fc::client::WakeSessionClient;
+#[cfg(unix)]
 use shell::pty::WakePtyManager;
 #[cfg(unix)]
-use shell::rc::{ShellType, get_shell};
-#[cfg(unix)]
-use fc::client::WakeSessionClient;
+use shell::rc::{get_shell, ShellType};
 
 #[derive(Parser)]
 #[command(name = "wake")]
@@ -104,7 +104,7 @@ enum Commands {
         /// The command that was executed (optional)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<String>,
-    }
+    },
 }
 
 #[tokio::main]
@@ -116,28 +116,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(unix)]
         Some(Commands::On { shell, quiet }) => {
             run_pty(shell, quiet)?;
-        },
+        }
         #[cfg(unix)]
-        Some(Commands::Off {  }) => {
+        Some(Commands::Off {}) => {
             kill_pty()?;
-        },
+        }
         #[cfg(unix)]
-        Some(Commands::Status {  }) => {
+        Some(Commands::Status {}) => {
             pty_status()?;
-        },
-        Some(Commands::Auth {  }) => {
+        }
+        Some(Commands::Auth {}) => {
             handle_config().await?;
-        },
+        }
         #[cfg(unix)]
         Some(Commands::Precmd { command }) => {
             let command_str = command.join(" ");
             handle_precmd(command_str)?;
-        },
+        }
         #[cfg(unix)]
         Some(Commands::Postcmd { exit_code, command }) => {
             let command_str = command.join(" ");
             handle_postcmd(exit_code, command_str).await?;
-        },
+        }
         None => {
             // Check for stdin input or trailing arguments
             let stdin_input = if !io::stdin().is_terminal() {
@@ -149,17 +149,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let mut messages = Vec::new();
-            
+
             // Add stdin content as first message if present
             if let Some(stdin_content) = stdin_input {
                 messages.push(stdin_content);
             }
-            
+
             // Add arguments as second message if present
             if !cli.args.is_empty() {
                 messages.push(cli.args.join(" "));
             }
-            
+
             if !messages.is_empty() || cli.list_tools {
                 // Route to fix command with combined messages and global options
                 handle_fix(messages, cli.list_tools, cli.tools, cli.remove, cli.trace).await?;
@@ -180,11 +180,15 @@ async fn default_config(default_config_url: Option<String>) {
 
     let default_url = match default_config_url {
         Some(url) => url,
-        None => "https://raw.githubusercontent.com/ovh/wake/refs/heads/main/.wake.config".to_string()
+        None => {
+            "https://raw.githubusercontent.com/ovh/wake/refs/heads/main/.wake.config".to_string()
+        }
     };
 
     let config = if let Ok(parsed_url) = default_url.parse() {
-        WakeConfig::pull_from_url(parsed_url).await.unwrap_or_else(|_| WakeConfig::default())
+        WakeConfig::pull_from_url(parsed_url)
+            .await
+            .unwrap_or_else(|_| WakeConfig::default())
     } else {
         WakeConfig::default()
     };
@@ -197,7 +201,7 @@ async fn handle_main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", logo);
     let mut app = App::new();
     match app.run().await {
-        Err(e) => eprintln!("error: {}",e),
+        Err(e) => eprintln!("error: {}", e),
         _ => {}
     }
     Ok(())
@@ -214,20 +218,23 @@ async fn ensure_config() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn handle_fix(
-    prompt: Vec<String>, 
-    list_tools: bool, 
-    tools: Option<String>, 
+    prompt: Vec<String>,
+    list_tools: bool,
+    tools: Option<String>,
     remove: Option<String>,
-    trace: bool
+    trace: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let initial_trace: Vec<ChatMessage> = prompt.into_iter()
-        .map(|p| ChatMessage::User { 
-            content: ChatMessageContent::Text(p), 
-            name: None 
+    let initial_trace: Vec<ChatMessage> = prompt
+        .into_iter()
+        .map(|p| ChatMessage::User {
+            content: ChatMessageContent::Text(p),
+            name: None,
         })
         .collect();
-    
-    AppHeadless::new().run(initial_trace, list_tools, tools, remove, trace).await
+
+    AppHeadless::new()
+        .run(initial_trace, list_tools, tools, remove, trace)
+        .await
 }
 
 #[cfg(unix)]
@@ -243,7 +250,6 @@ fn run_pty(shell: Option<ShellType>, quiet: bool) -> Result<(), Box<dyn std::err
     Ok(())
 }
 
-
 #[cfg(unix)]
 fn kill_pty() -> Result<(), Box<dyn std::error::Error>> {
     if env::var("WAKE_SESSION_ID").is_err() {
@@ -258,7 +264,6 @@ fn kill_pty() -> Result<(), Box<dyn std::error::Error>> {
     std::process::exit(0);
 }
 
-
 #[cfg(unix)]
 fn pty_status() -> Result<(), Box<dyn std::error::Error>> {
     if env::var("WAKE_SESSION_ID").is_ok() {
@@ -271,63 +276,70 @@ fn pty_status() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(unix)]
 pub fn handle_precmd(command: String) -> Result<(), Box<dyn std::error::Error>> {
-    env::var("WAKE_SESSION_ID").ok()
-        .and_then(|session_id| {
-            let client = WakeSessionClient::new(&session_id);
-            client.session_exists().then(|| client.pre_command(&command))
-        });
+    env::var("WAKE_SESSION_ID").ok().and_then(|session_id| {
+        let client = WakeSessionClient::new(&session_id);
+        client
+            .session_exists()
+            .then(|| client.pre_command(&command))
+    });
     Ok(())
 }
 
 #[cfg(unix)]
-pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<dyn std::error::Error>> {
-    env::var("WAKE_SESSION_ID").ok()
-        .and_then(|session_id| {
-            let client = WakeSessionClient::new(&session_id);
-            client.session_exists().then(|| client.post_command( exit_code, &command))
-        });
+pub async fn handle_postcmd(
+    exit_code: i32,
+    command: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    env::var("WAKE_SESSION_ID").ok().and_then(|session_id| {
+        let client = WakeSessionClient::new(&session_id);
+        client
+            .session_exists()
+            .then(|| client.post_command(exit_code, &command))
+    });
 
     match exit_code {
         0 => {
             // Success, do nothing
             return Ok(());
-        },
+        }
         code if code >= 128 => {
             // Signal (Ctrl-C, SIGTERM, etc.), ignore
             return Ok(());
-        },
+        }
         _ => {
             // Error occurred, analyze it
-            let last_terminal_output = env::var("WAKE_SESSION_ID").ok()
-                .and_then(|session_id| {
-                    let client = WakeSessionClient::new(&session_id);
-                    client.session_exists().then(|| client.get_last_commands(50).unwrap_or_else(|_| vec![].into()))
-                });
+            let last_terminal_output = env::var("WAKE_SESSION_ID").ok().and_then(|session_id| {
+                let client = WakeSessionClient::new(&session_id);
+                client.session_exists().then(|| {
+                    client
+                        .get_last_commands(50)
+                        .unwrap_or_else(|_| vec![].into())
+                })
+            });
 
             if let Some(cmd) = last_terminal_output {
-                let trace = vec![ChatMessage::User { 
-                    content: ChatMessageContent::Text(cmd.export_as_text()), 
-                    name: None 
+                let trace = vec![ChatMessage::User {
+                    content: ChatMessageContent::Text(cmd.export_as_text()),
+                    name: None,
                 }];
-            
+
                 let (llm, model) = WakeConfig::get_llm().await?;
-                
+
                 enable_raw_mode().unwrap();
                 let mut events = EventStream::new();
                 let mut ticker = interval(Duration::from_millis(100));
                 let spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
                 let mut spinner_index = 0;
-                
-                let mut clifix_task = tokio::spawn(async move {
-                    clifix(Arc::new(llm), model, trace).await
-                });
-                
+
+                let mut clifix_task =
+                    tokio::spawn(async move { clifix(Arc::new(llm), model, trace).await });
+
                 let result = loop {
                     tokio::select! {
                         result = &mut clifix_task => {
                             break result.unwrap();
                         }
-                        
+
                         maybe_event = events.next() => {
                             if let Some(Ok(Event::Key(KeyEvent { code: KeyCode::Esc, .. }))) = maybe_event {
                                 clifix_task.abort();
@@ -336,7 +348,7 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
                                 return Ok(());
                             }
                         }
-                        
+
                         _ = ticker.tick() => {
                             eprint!("\r\x1b[2mAnalyzing command... {} (Press ESC to cancel)\x1b[0m", spinner_chars[spinner_index]);
                             io::stdout().flush().unwrap();
@@ -344,10 +356,10 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
                         }
                     }
                 };
-                
+
                 disable_raw_mode().unwrap();
                 eprint!("\r\x1b[2K");
-                
+
                 match result {
                     Ok(res) => {
                         if let Some(rational) = &res.short_rational {
@@ -355,38 +367,47 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
                         }
                         eprint!("\x1b[38;5;206m❯\x1b[0m \x1b[1m{}\x1b[0m\n", &res.fixed_cli);
                         eprintln!("\n\x1b[2m ↵ Run • Esc / Ctrl+C Cancel\x1b[0m");
-                        
+
                         io::stdout().execute(cursor::MoveUp(3)).unwrap();
-                        io::stdout().execute(cursor::MoveToColumn((res.fixed_cli.len() + 3) as u16)).unwrap();
+                        io::stdout()
+                            .execute(cursor::MoveToColumn((res.fixed_cli.len() + 3) as u16))
+                            .unwrap();
                         io::stdout().flush().unwrap();
                         enable_raw_mode().unwrap();
-                        
+
                         loop {
-                            if let Ok(Event::Key(KeyEvent { code, modifiers, .. })) = event::read() {
+                            if let Ok(Event::Key(KeyEvent {
+                                code, modifiers, ..
+                            })) = event::read()
+                            {
                                 match (code, modifiers) {
                                     (KeyCode::Enter, _) => {
                                         disable_raw_mode().unwrap();
                                         io::stdout().execute(cursor::MoveDown(3)).unwrap();
                                         io::stdout().execute(cursor::MoveToColumn(0)).unwrap();
                                         println!();
-                                        
+
                                         let mut cmd = Command::new("sh");
                                         cmd.arg("-c").arg(&res.fixed_cli);
                                         cmd.envs(env::vars());
-                                        
+
                                         match cmd.status() {
                                             Ok(status) => {
                                                 if status.success() {
-                                                    shell::rc::write_to_shell_history(&res.fixed_cli);
+                                                    shell::rc::write_to_shell_history(
+                                                        &res.fixed_cli,
+                                                    );
                                                 }
                                             }
-                                            Err(e) => eprintln!("Failed to execute command: {}\n", e),
+                                            Err(e) => {
+                                                eprintln!("Failed to execute command: {}\n", e)
+                                            }
                                         }
                                         break;
                                     }
                                     (KeyCode::Esc, _) => {
                                         disable_raw_mode().unwrap();
-                                        println!(); 
+                                        println!();
                                         break;
                                     }
                                     (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
@@ -401,13 +422,12 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
                                 }
                             }
                         }
-                    },
+                    }
                     _ => {}
                 }
-            }  
+            }
         }
     }
-    
+
     Ok(())
 }
-

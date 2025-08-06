@@ -1,12 +1,12 @@
-use super::structs::{FindToolParams, SearchResult, FindType};
+use super::structs::{FindToolParams, FindType, SearchResult};
 use crate::tools::{tool, ToolResult};
+use regex::Regex;
 use serde_json::json;
 use std::collections::HashMap;
-use std::path::Path;
-use regex::Regex;
-use walkdir::WalkDir;
 use std::fs;
 use std::io::{BufRead, BufReader};
+use std::path::Path;
+use walkdir::WalkDir;
 
 pub struct FindTool;
 
@@ -15,9 +15,14 @@ impl FindTool {
         Self
     }
 
-    fn should_include_file(&self, path: &Path, include_extensions: &Option<String>, exclude_patterns: &Option<String>) -> bool {
+    fn should_include_file(
+        &self,
+        path: &Path,
+        include_extensions: &Option<String>,
+        exclude_patterns: &Option<String>,
+    ) -> bool {
         let path_str = path.to_string_lossy();
-        
+
         // Check exclude patterns first
         if let Some(exclude) = exclude_patterns {
             for pattern in exclude.split(',') {
@@ -27,7 +32,7 @@ impl FindTool {
                 }
             }
         }
-        
+
         // Check include extensions
         if let Some(include) = include_extensions {
             if let Some(ext) = path.extension() {
@@ -43,58 +48,70 @@ impl FindTool {
                 return false; // No extension but extensions are specified
             }
         }
-        
+
         true
     }
 
-    fn search_file_content(&self, file_path: &Path, pattern: &Regex, params: &FindToolParams) -> Vec<SearchResult> {
+    fn search_file_content(
+        &self,
+        file_path: &Path,
+        pattern: &Regex,
+        params: &FindToolParams,
+    ) -> Vec<SearchResult> {
         let mut results = Vec::new();
-        
+
         let file = match fs::File::open(file_path) {
             Ok(file) => file,
             Err(_) => return results,
         };
-        
+
         let reader = BufReader::new(file);
-        let lines: Vec<String> = reader.lines().collect::<Result<Vec<_>, _>>().unwrap_or_default();
-        
+        let lines: Vec<String> = reader
+            .lines()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap_or_default();
+
         for (line_num, line) in lines.iter().enumerate() {
             if pattern.is_match(line) {
                 let line_number = (line_num + 1) as u32;
                 let context_lines = params.context_lines.unwrap_or(0);
-                
+
                 let mut context_before = Vec::new();
                 let mut context_after = Vec::new();
-                
+
                 if context_lines > 0 {
                     let start = line_num.saturating_sub(context_lines as usize);
                     let end = std::cmp::min(line_num + context_lines as usize + 1, lines.len());
-                    
+
                     context_before = lines[start..line_num].iter().cloned().collect();
                     context_after = lines[line_num + 1..end].iter().cloned().collect();
                 }
-                
+
                 results.push(SearchResult {
                     file_path: file_path.to_string_lossy().to_string(),
-                    line_number: if params.show_line_numbers { Some(line_number) } else { None },
+                    line_number: if params.show_line_numbers {
+                        Some(line_number)
+                    } else {
+                        None
+                    },
                     line_content: Some(line.clone()),
                     context_before,
                     context_after,
                     match_type: "content".to_string(),
                 });
-                
+
                 if results.len() >= params.max_results as usize {
                     break;
                 }
             }
         }
-        
+
         results
     }
 
     fn search_filename(&self, file_path: &Path, pattern: &Regex) -> Option<SearchResult> {
         let filename = file_path.file_name()?.to_string_lossy();
-        
+
         if pattern.is_match(&filename) {
             Some(SearchResult {
                 file_path: file_path.to_string_lossy().to_string(),
@@ -133,15 +150,14 @@ impl FindTool {
         meta.insert("path".to_string(), json!(search_path));
         meta.insert("case_sensitive".to_string(), json!(params.case_sensitive));
         meta.insert("max_results".to_string(), json!(params.max_results));
-        meta.insert("find_type".to_string(), json!(format!("{:?}", params.find_type)));
+        meta.insert(
+            "find_type".to_string(),
+            json!(format!("{:?}", params.find_type)),
+        );
 
         // Create regex pattern
-        let regex_flags = if params.case_sensitive {
-            ""
-        } else {
-            "(?i)"
-        };
-        
+        let regex_flags = if params.case_sensitive { "" } else { "(?i)" };
+
         let pattern_str = if params.whole_word {
             format!("{}\\b{}\\b", regex_flags, regex::escape(&params.pattern))
         } else {
@@ -167,14 +183,15 @@ impl FindTool {
             .filter_map(|e| e.ok())
         {
             let path = entry.path();
-            
+
             // Skip directories for content search
             if path.is_dir() {
                 continue;
             }
 
             // Apply file filters
-            if !self.should_include_file(path, &params.include_extensions, &params.exclude_patterns) {
+            if !self.should_include_file(path, &params.include_extensions, &params.exclude_patterns)
+            {
                 continue;
             }
 
@@ -183,12 +200,12 @@ impl FindTool {
                 FindType::Content => {
                     let mut content_results = self.search_file_content(path, &pattern, &params);
                     all_results.append(&mut content_results);
-                },
+                }
                 FindType::Filename => {
                     if let Some(filename_result) = self.search_filename(path, &pattern) {
                         all_results.push(filename_result);
                     }
-                },
+                }
                 FindType::Both => {
                     // Search filename first
                     if let Some(filename_result) = self.search_filename(path, &pattern) {

@@ -1,6 +1,6 @@
-use crate::tools::{ToolResult, tool};
-use super::structs::ReadToolParams;
 use super::super::{FsOperationLog, FsOperationType};
+use super::structs::ReadToolParams;
+use crate::tools::{tool, ToolResult};
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
@@ -21,7 +21,7 @@ impl ReadTool {
     fn read_file_content(&self, params: &ReadToolParams) -> io::Result<String> {
         let file = fs::File::open(&params.path)?;
         let reader = BufReader::new(file);
-        
+
         match (params.line_start, params.line_end) {
             // Read specific line range
             (Some(start), Some(end)) => {
@@ -37,12 +37,14 @@ impl ReadTool {
                         }
                     })
                     .collect();
-                
+
                 match lines {
-                    Ok(filtered_lines) => Ok(self.format_lines(filtered_lines, params.show_line_numbers)),
-                    Err(e) => Err(e)
+                    Ok(filtered_lines) => {
+                        Ok(self.format_lines(filtered_lines, params.show_line_numbers))
+                    }
+                    Err(e) => Err(e),
                 }
-            },
+            }
             // Read from start line to end of file
             (Some(start), None) => {
                 let lines: Result<Vec<(u32, String)>, io::Error> = reader
@@ -57,12 +59,14 @@ impl ReadTool {
                         }
                     })
                     .collect();
-                
+
                 match lines {
-                    Ok(filtered_lines) => Ok(self.format_lines(filtered_lines, params.show_line_numbers)),
-                    Err(e) => Err(e)
+                    Ok(filtered_lines) => {
+                        Ok(self.format_lines(filtered_lines, params.show_line_numbers))
+                    }
+                    Err(e) => Err(e),
                 }
-            },
+            }
             // Read from beginning to end line
             (None, Some(end)) => {
                 let lines: Result<Vec<(u32, String)>, io::Error> = reader
@@ -77,12 +81,14 @@ impl ReadTool {
                         }
                     })
                     .collect();
-                
+
                 match lines {
-                    Ok(filtered_lines) => Ok(self.format_lines(filtered_lines, params.show_line_numbers)),
-                    Err(e) => Err(e)
+                    Ok(filtered_lines) => {
+                        Ok(self.format_lines(filtered_lines, params.show_line_numbers))
+                    }
+                    Err(e) => Err(e),
                 }
-            },
+            }
             // Read entire file
             (None, None) => {
                 if params.show_line_numbers {
@@ -94,10 +100,10 @@ impl ReadTool {
                             line.map(|l| (line_num, l))
                         })
                         .collect();
-                    
+
                     match lines {
                         Ok(numbered_lines) => Ok(self.format_lines(numbered_lines, true)),
-                        Err(e) => Err(e)
+                        Err(e) => Err(e),
                     }
                 } else {
                     fs::read_to_string(&params.path)
@@ -135,7 +141,7 @@ impl ReadTool {
 impl ReadTool {
     async fn execute(&self, params: ReadToolParams) -> ToolResult {
         let path = Path::new(&params.path);
-        
+
         // Check if file exists
         if !path.exists() {
             return ToolResult::error(format!("File does not exist: {}", params.path));
@@ -150,12 +156,14 @@ impl ReadTool {
         match self.read_file_content(&params) {
             Ok(content) => {
                 // Log the read operation
-                self.operation_log.log_operation(FsOperationType::Read, params.path.clone()).await;
+                self.operation_log
+                    .log_operation(FsOperationType::Read, params.path.clone())
+                    .await;
 
                 let mut meta = HashMap::new();
                 meta.insert("path".to_string(), json!(params.path));
                 meta.insert("total_lines".to_string(), json!(content.lines().count()));
-                
+
                 if let Some(start) = params.line_start {
                     meta.insert("line_start".to_string(), json!(start));
                 }
@@ -167,8 +175,8 @@ impl ReadTool {
                     output: content,
                     metadata: Some(meta),
                 }
-            },
-            Err(e) => ToolResult::error(format!("Failed to read file: {}", e))
+            }
+            Err(e) => ToolResult::error(format!("Failed to read file: {}", e)),
         }
     }
 }

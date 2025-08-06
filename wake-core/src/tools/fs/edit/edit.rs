@@ -1,8 +1,8 @@
-use super::structs::EditToolParams;
 use super::super::{FsOperationLog, FsOperationType};
+use super::structs::EditToolParams;
 use crate::tools::{tool, ToolResult};
-use similar::{ChangeTag, TextDiff};
 use serde_json::json;
+use similar::{ChangeTag, TextDiff};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -18,32 +18,34 @@ impl EditTool {
         Self { operation_log }
     }
 
-    pub fn myers_diff(&self, before_content: &str, after_content: &str) -> String {        
+    pub fn myers_diff(&self, before_content: &str, after_content: &str) -> String {
         let diff = TextDiff::from_lines(before_content, after_content);
-        
+
         // Check if there are any changes
-        let has_changes = diff.iter_all_changes().any(|change| change.tag() != ChangeTag::Equal);
+        let has_changes = diff
+            .iter_all_changes()
+            .any(|change| change.tag() != ChangeTag::Equal);
         if !has_changes {
             return "No changes".to_string();
         }
-        
+
         let mut diff_output = Vec::new();
         let mut line_num_old = 1;
         let mut line_num_new = 1;
-        
+
         for change in diff.iter_all_changes() {
             let (sign, style) = match change.tag() {
-                ChangeTag::Delete => ("-", "\x1b[48;5;88;37m"),  // Dark red background
-                ChangeTag::Insert => ("+", "\x1b[48;5;28;37m"),  // Dark green background
+                ChangeTag::Delete => ("-", "\x1b[48;5;88;37m"), // Dark red background
+                ChangeTag::Insert => ("+", "\x1b[48;5;28;37m"), // Dark green background
                 ChangeTag::Equal => (" ", ""),
             };
-            
+
             let line_no = match change.tag() {
                 ChangeTag::Delete => line_num_old,
                 ChangeTag::Insert => line_num_new,
                 ChangeTag::Equal => line_num_old, // Use old line number for context
             };
-            
+
             if change.tag() == ChangeTag::Equal {
                 diff_output.push(format!(
                     "\x1b[2;37m{:4}\x1b[0m   {}",
@@ -60,7 +62,7 @@ impl EditTool {
                     sign,
                     change.value().trim_end()
                 ));
-                
+
                 match change.tag() {
                     ChangeTag::Delete => line_num_old += 1,
                     ChangeTag::Insert => line_num_new += 1,
@@ -71,12 +73,17 @@ impl EditTool {
                 }
             }
         }
-        
+
         diff_output.join("\n")
     }
 
-
-    pub fn perform_edit_on_content(&self, content: &str, old_string: &str, new_string: &str, replace_all: bool) -> Result<(String, usize), String> {
+    pub fn perform_edit_on_content(
+        &self,
+        content: &str,
+        old_string: &str,
+        new_string: &str,
+        replace_all: bool,
+    ) -> Result<(String, usize), String> {
         // Check if the old_string exists in the content
         if !content.contains(old_string) {
             return Err(format!("Pattern '{}' not found in content", old_string));
@@ -99,7 +106,11 @@ impl EditTool {
         fs::write(path, new_content).map_err(|e| e.to_string())
     }
 
-    fn perform_edit(&self, params: &EditToolParams, preview: bool) -> Result<(String, usize), String> {
+    fn perform_edit(
+        &self,
+        params: &EditToolParams,
+        preview: bool,
+    ) -> Result<(String, usize), String> {
         let path = Path::new(&params.path);
 
         // Check if file exists
@@ -111,11 +122,16 @@ impl EditTool {
         let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
 
         // Perform edit on content
-        let (new_content, replacements) = self.perform_edit_on_content(&content, &params.old_string, &params.new_string, params.replace_all)?;
+        let (new_content, replacements) = self.perform_edit_on_content(
+            &content,
+            &params.old_string,
+            &params.new_string,
+            params.replace_all,
+        )?;
 
         // Generate proper diff using Myers' algorithm
         let diff = self.myers_diff(&content, &new_content);
-        
+
         let mut diff_output = Vec::new();
         diff_output.push("".to_string());
         diff_output.push(diff);
@@ -156,7 +172,11 @@ impl EditTool {
         }
 
         // Validate that the file has been read first
-        if let Err(err) = self.operation_log.validate_edit_permission(&params.path).await {
+        if let Err(err) = self
+            .operation_log
+            .validate_edit_permission(&params.path)
+            .await
+        {
             return ToolResult::error(err);
         }
 
@@ -164,9 +184,11 @@ impl EditTool {
             Ok((message, replacement_count)) => {
                 // Log the edit operation only if not preview
                 if !preview {
-                    self.operation_log.log_operation(FsOperationType::Edit, params.path.clone()).await;
+                    self.operation_log
+                        .log_operation(FsOperationType::Edit, params.path.clone())
+                        .await;
                 }
-                
+
                 let mut meta = HashMap::new();
                 meta.insert("path".to_string(), json!(params.path));
                 meta.insert("old_string".to_string(), json!(params.old_string));
@@ -184,10 +206,12 @@ impl EditTool {
                     output: message,
                     metadata: Some(meta),
                 }
-            },
-            Err(e) => {
-                ToolResult::error(format!("Edit {} failed: {}", if preview { "preview" } else { "" }, e))
             }
+            Err(e) => ToolResult::error(format!(
+                "Edit {} failed: {}",
+                if preview { "preview" } else { "" },
+                e
+            )),
         }
     }
 }

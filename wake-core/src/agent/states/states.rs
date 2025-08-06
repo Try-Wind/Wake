@@ -1,5 +1,5 @@
-use tokio_util::sync::CancellationToken;
 use chrono::{DateTime, Utc};
+use tokio_util::sync::CancellationToken;
 
 /// Internal agent status (contains channels and sync primitives)
 #[derive(Debug)]
@@ -22,7 +22,6 @@ pub enum InternalAgentState {
     Failed { error: String },
 }
 
-
 /// Public agent status (clean version without internal channels/sync primitives)
 #[derive(Debug, Clone)]
 pub enum PublicAgentState {
@@ -31,7 +30,7 @@ pub enum PublicAgentState {
     /// Agent is actively running
     Running,
     /// Agent is thinking
-    Processing { 
+    Processing {
         task_name: String,
         tools_exec_at: DateTime<Utc>,
     },
@@ -51,16 +50,20 @@ impl InternalAgentState {
         match self {
             InternalAgentState::Starting => PublicAgentState::Starting,
             InternalAgentState::Running => PublicAgentState::Running,
-            InternalAgentState::Processing { task_name, tools_exec_at, .. } => PublicAgentState::Processing { 
-                task_name: task_name.clone(), 
-                tools_exec_at: tools_exec_at.clone()
+            InternalAgentState::Processing {
+                task_name,
+                tools_exec_at,
+                ..
+            } => PublicAgentState::Processing {
+                task_name: task_name.clone(),
+                tools_exec_at: tools_exec_at.clone(),
             },
             InternalAgentState::Paused => PublicAgentState::Paused,
-            InternalAgentState::Completed { success } => PublicAgentState::Completed { 
-                success: *success 
-            },
-            InternalAgentState::Failed { error } => PublicAgentState::Failed { 
-                error: error.clone() 
+            InternalAgentState::Completed { success } => {
+                PublicAgentState::Completed { success: *success }
+            }
+            InternalAgentState::Failed { error } => PublicAgentState::Failed {
+                error: error.clone(),
             },
         }
     }

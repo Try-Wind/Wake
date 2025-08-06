@@ -1,12 +1,12 @@
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::thread;
-use std::sync::{Arc, Mutex};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
-use ringbuffer::RingBuffer;
 use crate::fc::history::{CommandEntry, CommandHistory};
-use crate::fc::protocol::{WakeProtocol, WakeRequest, WakeResponse, ResponseData};
+use crate::fc::protocol::{ResponseData, WakeProtocol, WakeRequest, WakeResponse};
+use ringbuffer::RingBuffer;
 
 /// Socket server for serving command history data
 pub struct WakeSessionServer {
@@ -61,7 +61,7 @@ impl WakeSessionServer {
                     Err(_) => break,
                 }
             }
-            
+
             let _ = std::fs::remove_file(&socket_path);
         });
 
@@ -84,10 +84,10 @@ impl WakeSessionServer {
         pending_command: Arc<Mutex<Option<String>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let request = WakeProtocol::read_request(&mut stream)?;
-        
+
         let response = Self::process_request(request, &history, &pending_command);
         WakeProtocol::write_response(&mut stream, &response)?;
-        
+
         Ok(())
     }
 
@@ -100,23 +100,30 @@ impl WakeSessionServer {
             WakeRequest::GetAllCmd => {
                 let history = match history_ref.lock() {
                     Ok(h) => h,
-                    Err(_) => return WakeResponse::Error { message: "Lock error".to_string() },
+                    Err(_) => {
+                        return WakeResponse::Error {
+                            message: "Lock error".to_string(),
+                        }
+                    }
                 };
-                
-                let entries: Vec<CommandEntry> = history
-                    .iter()
-                    .cloned()
-                    .collect();
-                
-                WakeResponse::Ok { data: ResponseData::Commands(entries) }
+
+                let entries: Vec<CommandEntry> = history.iter().cloned().collect();
+
+                WakeResponse::Ok {
+                    data: ResponseData::Commands(entries),
+                }
             }
-            
+
             WakeRequest::GetLastCmd { n } => {
                 let history = match history_ref.lock() {
                     Ok(h) => h,
-                    Err(_) => return WakeResponse::Error { message: "Lock error".to_string() },
+                    Err(_) => {
+                        return WakeResponse::Error {
+                            message: "Lock error".to_string(),
+                        }
+                    }
                 };
-                
+
                 let entries: Vec<CommandEntry> = history
                     .iter()
                     .rev()
@@ -126,36 +133,42 @@ impl WakeSessionServer {
                     .rev()
                     .cloned()
                     .collect();
-                
-                WakeResponse::Ok { data: ResponseData::Commands(entries) }
-            }
-            
-            WakeRequest::Clear => {
-                match history_ref.lock() {
-                    Ok(mut history) => {
-                        history.clear();
-                        WakeResponse::Ok { data: ResponseData::Empty }
-                    }
-                    Err(_) => WakeResponse::Error { message: "Lock error".to_string() },
+
+                WakeResponse::Ok {
+                    data: ResponseData::Commands(entries),
                 }
             }
-            
+
+            WakeRequest::Clear => match history_ref.lock() {
+                Ok(mut history) => {
+                    history.clear();
+                    WakeResponse::Ok {
+                        data: ResponseData::Empty,
+                    }
+                }
+                Err(_) => WakeResponse::Error {
+                    message: "Lock error".to_string(),
+                },
+            },
+
             WakeRequest::Status => {
                 let history = match history_ref.lock() {
                     Ok(h) => h,
-                    Err(_) => return WakeResponse::Error { message: "Lock error".to_string() },
+                    Err(_) => {
+                        return WakeResponse::Error {
+                            message: "Lock error".to_string(),
+                        }
+                    }
                 };
-                
+
                 let all_commands: Vec<&CommandEntry> = history.iter().collect();
                 let total = all_commands.len();
                 let successful = all_commands.iter().filter(|e| e.is_success()).count();
                 let failed = total - successful;
-                
+
                 let avg_duration = if total > 0 {
-                    let total_duration: u64 = all_commands
-                        .iter()
-                        .filter_map(|e| e.duration_ms)
-                        .sum();
+                    let total_duration: u64 =
+                        all_commands.iter().filter_map(|e| e.duration_ms).sum();
                     Some(total_duration / total as u64)
                 } else {
                     None
@@ -167,26 +180,36 @@ impl WakeSessionServer {
                     failed_commands: failed,
                     average_duration_ms: avg_duration,
                 };
-                WakeResponse::Ok { data: ResponseData::Stats(stats) }
+                WakeResponse::Ok {
+                    data: ResponseData::Stats(stats),
+                }
             }
-            
+
             WakeRequest::PreCmd { cmd } => {
                 // Store the pending command and add it to history
                 match pending_command_ref.lock() {
                     Ok(mut pending) => *pending = Some(cmd.clone()),
-                    Err(_) => return WakeResponse::Error { message: "Lock error".to_string() },
+                    Err(_) => {
+                        return WakeResponse::Error {
+                            message: "Lock error".to_string(),
+                        }
+                    }
                 }
-                
+
                 match history_ref.lock() {
                     Ok(mut history) => {
                         let entry = CommandEntry::new(cmd, 1024);
                         history.enqueue(entry);
-                        WakeResponse::Ok { data: ResponseData::Empty }
+                        WakeResponse::Ok {
+                            data: ResponseData::Empty,
+                        }
                     }
-                    Err(_) => WakeResponse::Error { message: "Lock error".to_string() },
+                    Err(_) => WakeResponse::Error {
+                        message: "Lock error".to_string(),
+                    },
                 }
             }
-            
+
             WakeRequest::PostCmd { cmd, exit_code } => {
                 // Verify the command matches the pending one
                 let pending_matches = match pending_command_ref.lock() {
@@ -195,24 +218,32 @@ impl WakeSessionServer {
                         *pending = None; // Clear pending command
                         matches
                     }
-                    Err(_) => return WakeResponse::Error { message: "Lock error".to_string() },
+                    Err(_) => {
+                        return WakeResponse::Error {
+                            message: "Lock error".to_string(),
+                        }
+                    }
                 };
-                
+
                 if !pending_matches {
-                    return WakeResponse::Error { 
-                        message: "PostCmd command doesn't match pending PreCmd".to_string() 
+                    return WakeResponse::Error {
+                        message: "PostCmd command doesn't match pending PreCmd".to_string(),
                     };
                 }
-                
+
                 // Update the last command with exit code and duration
                 match history_ref.lock() {
                     Ok(mut history) => {
                         if let Some(last_entry) = history.back_mut() {
                             last_entry.set_exit_code(exit_code);
                         }
-                        WakeResponse::Ok { data: ResponseData::Empty }
+                        WakeResponse::Ok {
+                            data: ResponseData::Empty,
+                        }
                     }
-                    Err(_) => WakeResponse::Error { message: "Lock error".to_string() },
+                    Err(_) => WakeResponse::Error {
+                        message: "Lock error".to_string(),
+                    },
                 }
             }
         }

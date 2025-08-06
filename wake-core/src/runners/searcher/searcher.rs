@@ -1,19 +1,21 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use openai_dive::v1::resources::chat::{ChatCompletionParametersBuilder, ChatCompletionToolChoice};
 use wake_llm::{client::LlmClient, ChatMessage, ChatMessageContent};
-use async_trait::async_trait;
 
 use crate::agent::brain::ThinkerDecision;
 use crate::agent::{Agent, AgentBuilder, AgentError, Brain, ThinkerContext};
-use crate::tools::{AnyTool, FetchTool, FindTool, LsTool, ReadTool, TodoReadTool, TodoWriteTool, TodoStorage};
+use crate::tools::{
+    AnyTool, FetchTool, FindTool, LsTool, ReadTool, TodoReadTool, TodoStorage, TodoWriteTool,
+};
 
 use super::prompt::searcher_next_step;
 
 #[derive(Clone)]
 pub struct SearcherBrain {
     pub llm: Arc<LlmClient>,
-    pub model: String
+    pub model: String,
 }
 
 impl SearcherBrain {
@@ -47,40 +49,47 @@ impl SearcherBrain {
     }
 }
 
-
 #[async_trait]
 impl Brain for SearcherBrain {
     async fn next_step(&mut self, context: ThinkerContext) -> Result<ThinkerDecision, AgentError> {
         let mut trace = context.trace.read().await.clone();
 
-        trace.insert(0, ChatMessage::System {
-            content: ChatMessageContent::Text(searcher_next_step()),
-            name: None,
-        });
-        let brain_decision = self.chat_with_tools(
-            trace,
-            &context.available_tools,
-            ChatCompletionToolChoice::Auto,
-        )
-        .await?;
-    
+        trace.insert(
+            0,
+            ChatMessage::System {
+                content: ChatMessageContent::Text(searcher_next_step()),
+                name: None,
+            },
+        );
+        let brain_decision = self
+            .chat_with_tools(
+                trace,
+                &context.available_tools,
+                ChatCompletionToolChoice::Auto,
+            )
+            .await?;
+
         // stop here if there's no other tool calls
-        if let ChatMessage::Assistant { reasoning_content, content, tool_calls, .. } = &brain_decision {
+        if let ChatMessage::Assistant {
+            reasoning_content,
+            content,
+            tool_calls,
+            ..
+        } = &brain_decision
+        {
             if tool_calls.as_ref().map_or(true, |calls| calls.is_empty()) {
                 return Ok(ThinkerDecision::agent_pause(brain_decision));
             }
-        } 
+        }
 
         Ok(ThinkerDecision::agent_continue(brain_decision))
     }
 }
 
-
-
 pub fn searcher(llm: Arc<LlmClient>, model: String) -> impl Agent {
     // Create shared storage for todo tools
     let todo_storage = Arc::new(TodoStorage::new());
-    
+
     // Only read-only tools for the searcher
     let fetch = Box::new(FetchTool::new());
     let find = Box::new(FindTool::new());
@@ -89,8 +98,11 @@ pub fn searcher(llm: Arc<LlmClient>, model: String) -> impl Agent {
     let todoread = Box::new(TodoReadTool::new(todo_storage.clone()));
     let todowrite = Box::new(TodoWriteTool::new(todo_storage.clone()));
     let toolbox: Vec<Box<dyn AnyTool>> = vec![fetch, find, ls, read, todoread, todowrite];
-    
-    AgentBuilder::new(Box::new(SearcherBrain{llm: llm.clone(), model}))
+
+    AgentBuilder::new(Box::new(SearcherBrain {
+        llm: llm.clone(),
+        model,
+    }))
     .tools(toolbox)
     .build()
 }

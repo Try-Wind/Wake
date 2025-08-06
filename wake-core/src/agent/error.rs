@@ -1,5 +1,5 @@
-use wake_llm::provider::LlmError;
 use thiserror::Error;
+use wake_llm::provider::LlmError;
 
 #[derive(Error, Debug, Clone)]
 pub enum AgentError {
@@ -59,4 +59,3 @@ impl From<LlmError> for AgentExecutionError {
         AgentExecutionError::LlmError(error)
     }
 }
-

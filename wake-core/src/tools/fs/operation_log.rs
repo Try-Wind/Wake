@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-use tokio::sync::RwLock;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use tokio::sync::RwLock;
 
 /// Represents a file system operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,7 +164,7 @@ mod tests {
         let log = FsOperationLog::new();
         let operations = log.get_all_operations().await;
         let read_files = log.get_read_files().await;
-        
+
         assert!(operations.is_empty());
         assert!(read_files.is_empty());
     }
@@ -172,11 +172,12 @@ mod tests {
     #[tokio::test]
     async fn test_log_read_operation() {
         let log = FsOperationLog::new();
-        log.log_operation(FsOperationType::Read, "test.txt".to_string()).await;
-        
+        log.log_operation(FsOperationType::Read, "test.txt".to_string())
+            .await;
+
         assert!(log.has_been_read("test.txt").await);
         assert!(!log.has_been_read("other.txt").await);
-        
+
         let operations = log.get_all_operations().await;
         assert_eq!(operations.len(), 1);
         assert_eq!(operations[0].operation_type, FsOperationType::Read);
@@ -186,14 +187,15 @@ mod tests {
     #[tokio::test]
     async fn test_validate_edit_permission() {
         let log = FsOperationLog::new();
-        
+
         // Should fail before reading
         let result = log.validate_edit_permission("test.txt").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("must be read first"));
-        
+
         // Should succeed after reading
-        log.log_operation(FsOperationType::Read, "test.txt".to_string()).await;
+        log.log_operation(FsOperationType::Read, "test.txt".to_string())
+            .await;
         let result = log.validate_edit_permission("test.txt").await;
         assert!(result.is_ok());
     }
@@ -201,19 +203,23 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_operations() {
         let log = FsOperationLog::new();
-        
+
         // Log multiple operations
-        log.log_operation(FsOperationType::Read, "file1.txt".to_string()).await;
-        log.log_operation(FsOperationType::Edit, "file1.txt".to_string()).await;
-        log.log_operation(FsOperationType::Write, "file2.txt".to_string()).await;
-        log.log_operation(FsOperationType::MultiEdit, "file1.txt".to_string()).await;
-        
+        log.log_operation(FsOperationType::Read, "file1.txt".to_string())
+            .await;
+        log.log_operation(FsOperationType::Edit, "file1.txt".to_string())
+            .await;
+        log.log_operation(FsOperationType::Write, "file2.txt".to_string())
+            .await;
+        log.log_operation(FsOperationType::MultiEdit, "file1.txt".to_string())
+            .await;
+
         let operations = log.get_all_operations().await;
         assert_eq!(operations.len(), 4);
-        
+
         let file1_ops = log.get_file_operations("file1.txt").await;
         assert_eq!(file1_ops.len(), 3);
-        
+
         let summary = log.get_summary().await;
         assert_eq!(summary.total_operations, 4);
         assert_eq!(summary.read_count, 1);
@@ -226,11 +232,12 @@ mod tests {
     #[tokio::test]
     async fn test_clear_log() {
         let log = FsOperationLog::new();
-        
-        log.log_operation(FsOperationType::Read, "test.txt".to_string()).await;
+
+        log.log_operation(FsOperationType::Read, "test.txt".to_string())
+            .await;
         assert!(!log.get_all_operations().await.is_empty());
         assert!(log.has_been_read("test.txt").await);
-        
+
         log.clear().await;
         assert!(log.get_all_operations().await.is_empty());
         assert!(!log.has_been_read("test.txt").await);

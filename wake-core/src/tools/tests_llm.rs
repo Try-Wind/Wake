@@ -1,20 +1,20 @@
 #[cfg(test)]
 mod llm_integration_tests {
+    use crate::logging::LoggingConfig;
+    use crate::tools::{
+        AnyTool, BashTool, EditTool, FetchTool, FindTool, FsOperationLog, LsTool, MultiEditTool,
+        ReadTool, TodoReadTool, TodoStorage, TodoWriteTool, WriteTool,
+    };
+    use openai_dive::v1::resources::chat::{
+        ChatCompletionParametersBuilder, ChatCompletionToolChoice,
+    };
     use std::sync::Arc;
     use std::sync::Once;
     use tracing::debug;
     use wake_llm::{ChatMessage, ChatMessageContent, LlmClient};
-    use openai_dive::v1::resources::chat::{ChatCompletionParametersBuilder, ChatCompletionToolChoice};
-    use crate::logging::LoggingConfig;
-    use crate::tools::{
-        AnyTool, 
-        BashTool, EditTool, FetchTool, FindTool, LsTool, MultiEditTool, 
-        ReadTool, TodoReadTool, TodoWriteTool, WriteTool,
-        TodoStorage, FsOperationLog
-    };
 
     static INIT_LOGGING: Once = Once::new();
-    
+
     fn init_test_logging() {
         INIT_LOGGING.call_once(|| {
             let _ = LoggingConfig::from_env().init();
@@ -27,14 +27,17 @@ mod llm_integration_tests {
         prompt: &str,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         init_test_logging();
-        
-        let llm_client = LlmClient::first_from_env()
-            .ok_or("No LLM provider available")?;
+
+        let llm_client = LlmClient::first_from_env().ok_or("No LLM provider available")?;
         let model = llm_client.default_model().await.expect("default model");
-        
-        println!("Testing tool '{}' with model '{}' from provider '{}'", 
-                 tool.name(), model, llm_client.provider_name());
-        
+
+        println!(
+            "Testing tool '{}' with model '{}' from provider '{}'",
+            tool.name(),
+            model,
+            llm_client.provider_name()
+        );
+
         // Create messages that should trigger tool usage
         let messages = vec![
             ChatMessage::System {
@@ -64,20 +67,18 @@ mod llm_integration_tests {
         debug!(target: "misc", "Chat request: {}", serde_json::to_string_pretty(&request).unwrap());
 
         // Make the request
-        let response = llm_client
-            .chat(request)
-            .await
-            .map_err(|e| {
-                let error_str = e.to_string().to_lowercase();
-                if error_str.contains("connection") || 
-                   error_str.contains("refused") || 
-                   error_str.contains("error sending request") ||
-                   error_str.contains("tcp connect error") {
-                    format!("LLM service not available: {}", e)
-                } else {
-                    format!("LLM request failed: {}", e)
-                }
-            })?;
+        let response = llm_client.chat(request).await.map_err(|e| {
+            let error_str = e.to_string().to_lowercase();
+            if error_str.contains("connection")
+                || error_str.contains("refused")
+                || error_str.contains("error sending request")
+                || error_str.contains("tcp connect error")
+            {
+                format!("LLM service not available: {}", e)
+            } else {
+                format!("LLM request failed: {}", e)
+            }
+        })?;
 
         // Debug the response received
         debug!(target: "misc", "Chat response: {}", serde_json::to_string_pretty(&response).unwrap());
@@ -91,9 +92,14 @@ mod llm_integration_tests {
                     for call in calls {
                         debug!(target: "misc", "Tool call: {} -> {}", call.function.name, tool.name());
                     }
-                    let tool_was_called = calls.iter().any(|call| call.function.name == tool.name());
+                    let tool_was_called =
+                        calls.iter().any(|call| call.function.name == tool.name());
                     if tool_was_called {
-                        println!("✅ Tool '{}' PASSED with provider '{}'", tool.name(), llm_client.provider_name());
+                        println!(
+                            "✅ Tool '{}' PASSED with provider '{}'",
+                            tool.name(),
+                            llm_client.provider_name()
+                        );
                     } else {
                         println!("❌ Tool '{}' FAILED - tool not called", tool.name());
                     }
@@ -107,8 +113,11 @@ mod llm_integration_tests {
         } else {
             debug!(target: "misc", "No choices in response");
         }
-        
-        println!("❌ Tool '{}' FAILED - no tool calls in response", tool.name());
+
+        println!(
+            "❌ Tool '{}' FAILED - no tool calls in response",
+            tool.name()
+        );
         Ok(false)
     }
 
@@ -119,9 +128,10 @@ mod llm_integration_tests {
                 Ok(success) => assert!(success, $error_msg),
                 Err(e) => {
                     let error_str = e.to_string().to_lowercase();
-                    if error_str.contains("not available") || 
-                       error_str.contains("connection") || 
-                       error_str.contains("refused") {
+                    if error_str.contains("not available")
+                        || error_str.contains("connection")
+                        || error_str.contains("refused")
+                    {
                         println!("⚠️  Skipping LLM test - {}", e);
                         return; // Skip test if LLM service not available
                     } else {
@@ -154,7 +164,10 @@ mod llm_integration_tests {
     async fn test_fetch_tool_with_llm() {
         let tool: Arc<dyn AnyTool> = Arc::new(FetchTool::new());
         llm_test_with_fallback!(
-            test_tool_with_llm(tool, "Fetch the content from https://httpbin.org/json and show me the response"),
+            test_tool_with_llm(
+                tool,
+                "Fetch the content from https://httpbin.org/json and show me the response"
+            ),
             "FetchTool should be called by LLM"
         );
     }
@@ -163,7 +176,10 @@ mod llm_integration_tests {
     async fn test_find_tool_with_llm() {
         let tool: Arc<dyn AnyTool> = Arc::new(FindTool::new());
         llm_test_with_fallback!(
-            test_tool_with_llm(tool, "Search for files containing 'test' in the current directory"),
+            test_tool_with_llm(
+                tool,
+                "Search for files containing 'test' in the current directory"
+            ),
             "FindTool should be called by LLM"
         );
     }
@@ -190,7 +206,10 @@ mod llm_integration_tests {
     async fn test_write_tool_with_llm() {
         let tool: Arc<dyn AnyTool> = Arc::new(WriteTool::new(Arc::new(FsOperationLog::new())));
         llm_test_with_fallback!(
-            test_tool_with_llm(tool, "Write 'Hello LLM Test' to the file '/tmp/test_write.txt'"),
+            test_tool_with_llm(
+                tool,
+                "Write 'Hello LLM Test' to the file '/tmp/test_write.txt'"
+            ),
             "WriteTool should be called by LLM"
         );
     }
@@ -208,7 +227,10 @@ mod llm_integration_tests {
     async fn test_edit_tool_with_llm() {
         let tool: Arc<dyn AnyTool> = Arc::new(EditTool::new(Arc::new(FsOperationLog::new())));
         llm_test_with_fallback!(
-            test_tool_with_llm(tool, "In the file 'Cargo.toml', replace 'name' with 'project_name'"),
+            test_tool_with_llm(
+                tool,
+                "In the file 'Cargo.toml', replace 'name' with 'project_name'"
+            ),
             "EditTool should be called by LLM"
         );
     }

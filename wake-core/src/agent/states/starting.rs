@@ -1,12 +1,18 @@
-use crate::agent::{AgentCore, AgentError, InternalAgentEvent};
 use super::InternalAgentState;
-use wake_llm::ChatMessage;
+use crate::agent::{AgentCore, AgentError, InternalAgentEvent};
 use tracing::error;
+use wake_llm::ChatMessage;
 
 impl AgentCore {
-    pub async fn state_starting_handle_event(&mut self, event: InternalAgentEvent) -> Result<(), AgentError> {
+    pub async fn state_starting_handle_event(
+        &mut self,
+        event: InternalAgentEvent,
+    ) -> Result<(), AgentError> {
         let InternalAgentState::Starting = &self.state else {
-            return Err(AgentError::InvalidState(format!("state Starting expected but current state is : {:?}", self.state.to_public())));
+            return Err(AgentError::InvalidState(format!(
+                "state Starting expected but current state is : {:?}",
+                self.state.to_public()
+            )));
         };
 
         match event {
@@ -15,12 +21,16 @@ impl AgentCore {
             }
             _ => {
                 // ignore all events but log error
-                error!("event {:?} unexpected in state {:?}", event, self.state.to_public());
+                error!(
+                    "event {:?} unexpected in state {:?}",
+                    event,
+                    self.state.to_public()
+                );
             }
         }
         Ok(())
     }
-    
+
     /// Handle agent initialization - move from Starting to Running or Paused based on goal
     async fn handle_agent_initialized(&mut self) {
         let trace = self.trace.clone();

@@ -1,6 +1,6 @@
 // Tests will be added here
 #[cfg(test)]
-mod tests {   
+mod tests {
     #[test]
     fn placeholder_test() {
         // Placeholder test to make module compile

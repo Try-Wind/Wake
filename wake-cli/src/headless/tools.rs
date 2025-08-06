@@ -1,7 +1,8 @@
 use std::sync::Arc;
-use wake_core::tools::{AnyTool, BashTool, EditTool, FetchTool, FindTool, LsTool, 
-                     MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool,
-                     TodoStorage, FsOperationLog};
+use wake_core::tools::{
+    AnyTool, BashTool, EditTool, FetchTool, FindTool, FsOperationLog, LsTool, MultiEditTool,
+    ReadTool, TodoReadTool, TodoStorage, TodoWriteTool, WriteTool,
+};
 
 /// Available tools for the coder agent
 #[derive(Debug, Clone, PartialEq)]
@@ -125,15 +126,18 @@ impl ToolConfig {
                 ToolName::Ls => toolbox.push(Box::new(LsTool::new())),
                 ToolName::MultiEdit => toolbox.push(Box::new(MultiEditTool::new(fs_log.clone()))),
                 ToolName::Read => toolbox.push(Box::new(ReadTool::new(fs_log.clone()))),
-                ToolName::TodoRead => toolbox.push(Box::new(TodoReadTool::new(todo_storage.clone()))),
-                ToolName::TodoWrite => toolbox.push(Box::new(TodoWriteTool::new(todo_storage.clone()))),
+                ToolName::TodoRead => {
+                    toolbox.push(Box::new(TodoReadTool::new(todo_storage.clone())))
+                }
+                ToolName::TodoWrite => {
+                    toolbox.push(Box::new(TodoWriteTool::new(todo_storage.clone())))
+                }
                 ToolName::Write => toolbox.push(Box::new(WriteTool::new(fs_log.clone()))),
             }
         }
         toolbox
     }
 }
-
 
 pub fn list_all_tools() {
     eprintln!("Available tools:");

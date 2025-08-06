@@ -2,15 +2,11 @@ use crate::tool::ToolBox;
 use crate::ToolCallMethod;
 
 // llm/client.rs
-use super::provider::{LlmProvider, LlmError, LlmStream, ProviderInfo};
+use super::provider::{LlmError, LlmProvider, LlmStream, ProviderInfo};
 use super::providers::{
-    openai::OpenAIProvider,
-    openai_compatible::OpenAICompatibleProvider,
-    openrouter::OpenRouterProvider,
-    ovhcloud::OvhCloudProvider,
-    anthropic::AnthropicProvider,
-    ollama::OllamaProvider,
-    mistral::MistralProvider
+    anthropic::AnthropicProvider, mistral::MistralProvider, ollama::OllamaProvider,
+    openai::OpenAIProvider, openai_compatible::OpenAICompatibleProvider,
+    openrouter::OpenRouterProvider, ovhcloud::OvhCloudProvider,
 };
 use openai_dive::v1::resources::chat::ChatCompletionParametersBuilder;
 use openai_dive::v1::resources::{
@@ -124,7 +120,6 @@ impl LlmClient {
         }
     }
 
-
     /// Get all available LLM clients from environment variables
     /// Returns clients in order of preference for testing
     pub fn first_from_env() -> Option<Self> {
@@ -140,7 +135,7 @@ impl LlmClient {
                 _ => {} // Fall through to default behavior
             }
         }
-        
+
         if let Some(client) = Self::from_env_ovhcloud() {
             return Some(client);
         }
@@ -179,51 +174,60 @@ impl LlmClient {
     }
 
     /// Create a provider dynamically based on name and environment values
-    pub fn create_provider(provider_name: &str, env_values: &std::collections::HashMap<String, String>) -> Result<Self, LlmError> {
+    pub fn create_provider(
+        provider_name: &str,
+        env_values: &std::collections::HashMap<String, String>,
+    ) -> Result<Self, LlmError> {
         match provider_name {
             "openai" => {
-                let api_key = env_values.get("OPENAI_API_KEY")
+                let api_key = env_values
+                    .get("OPENAI_API_KEY")
                     .ok_or("OPENAI_API_KEY not found")?;
                 Ok(Self::openai(api_key.clone()))
-            },
+            }
             "anthropic" => {
-                let api_key = env_values.get("ANTHROPIC_API_KEY")
+                let api_key = env_values
+                    .get("ANTHROPIC_API_KEY")
                     .ok_or("ANTHROPIC_API_KEY not found")?;
                 Ok(Self::anthropic(api_key.clone()))
-            },
+            }
             "ollama" => {
-                let base_url = env_values.get("OLLAMA_BASE_URL")
+                let base_url = env_values
+                    .get("OLLAMA_BASE_URL")
                     .cloned()
                     .unwrap_or_else(|| "http://localhost:11434/v1".to_string());
                 Ok(Self::ollama(base_url))
-            },
+            }
             "mistral" => {
-                let api_key = env_values.get("MISTRAL_API_KEY")
+                let api_key = env_values
+                    .get("MISTRAL_API_KEY")
                     .ok_or("MISTRAL_API_KEY not found")?;
                 Ok(Self::mistral(api_key.clone()))
-            },
+            }
             "ovhcloud" => {
                 let api_key = env_values.get("OVH_API_KEY").map_or("", |v| v);
                 let base_url = env_values.get("OVH_BASE_URL").cloned();
                 Ok(Self::ovhcloud(api_key.to_string(), base_url))
-            },
+            }
             "openrouter" => {
-                let api_key = env_values.get("OPENROUTER_API_KEY")
+                let api_key = env_values
+                    .get("OPENROUTER_API_KEY")
                     .ok_or("OPENROUTER_API_KEY not found")?;
                 Ok(Self::openrouter(api_key.clone()))
-            },
+            }
             "openai_compatible" => {
-                let api_key = env_values.get("OPENAI_COMPATIBLE_API_KEY")
+                let api_key = env_values
+                    .get("OPENAI_COMPATIBLE_API_KEY")
                     .ok_or("OPENAI_COMPATIBLE_API_KEY not found")?;
-                let base_url = env_values.get("OPENAI_COMPATIBLE_BASE_URL")
+                let base_url = env_values
+                    .get("OPENAI_COMPATIBLE_BASE_URL")
                     .ok_or("OPENAI_COMPATIBLE_BASE_URL not found")?;
                 Ok(Self::compatible(api_key.clone(), base_url.clone()))
-            },
-            _ => Err(format!("Unknown provider: {}", provider_name).into())
+            }
+            _ => Err(format!("Unknown provider: {}", provider_name).into()),
         }
     }
 }
-
 
 /// Provider Delegate
 impl LlmClient {
@@ -251,26 +255,25 @@ impl LlmClient {
 
 /// Higher level chat client
 impl LlmClient {
-    pub async fn chat(&self, request: ChatCompletionParameters) -> Result<ChatCompletionResponse, LlmError> {
-        let request = request
-            .fix_mistral_alternating();
+    pub async fn chat(
+        &self,
+        request: ChatCompletionParameters,
+    ) -> Result<ChatCompletionResponse, LlmError> {
+        let request = request.fix_mistral_alternating();
 
-        let response = self.provider
-            .chat(request)
-            .await?
-            .extract_think_content();
+        let response = self.provider.chat(request).await?.extract_think_content();
 
         Ok(response)
     }
 
-    pub async fn chat_stream(&self, request: ChatCompletionParameters) -> Result<LlmStream, LlmError> {
-        let request = request
-            .fix_mistral_alternating();
+    pub async fn chat_stream(
+        &self,
+        request: ChatCompletionParameters,
+    ) -> Result<LlmStream, LlmError> {
+        let request = request.fix_mistral_alternating();
 
         self.provider.chat_stream(request).await
     }
-
-
 }
 
 pub trait ExtractThinkContent {
@@ -281,13 +284,25 @@ pub trait ExtractThinkContent {
 impl ExtractThinkContent for ChatCompletionResponse {
     fn extract_think_content(mut self) -> ChatCompletionResponse {
         for choice in &mut self.choices {
-            if let ChatMessage::Assistant { reasoning_content, content, .. } = &mut choice.message {
+            if let ChatMessage::Assistant {
+                reasoning_content,
+                content,
+                ..
+            } = &mut choice.message
+            {
                 if let Some(ChatMessageContent::Text(content_text)) = content {
                     let think_regex = Regex::new(r"(?s)<think>(.*?)</think>").unwrap();
-                    if let Some(reasoning) = think_regex.captures(content_text).map(|c| c.get(1).unwrap().as_str().trim()) {
+                    if let Some(reasoning) = think_regex
+                        .captures(content_text)
+                        .map(|c| c.get(1).unwrap().as_str().trim())
+                    {
                         *reasoning_content = Some(reasoning.to_string());
                         let cleaned = think_regex.replace_all(content_text, "").trim().to_string();
-                        *content = if cleaned.is_empty() { None } else { Some(ChatMessageContent::Text(cleaned)) };
+                        *content = if cleaned.is_empty() {
+                            None
+                        } else {
+                            Some(ChatMessageContent::Text(cleaned))
+                        };
                     }
                 }
             }
@@ -297,14 +312,14 @@ impl ExtractThinkContent for ChatCompletionResponse {
 }
 
 pub trait FixMistralAlternating {
-    /// Mistral enforces alternating of user/assistant which is problematic in multiturn 
+    /// Mistral enforces alternating of user/assistant which is problematic in multiturn
     /// conversation where assistant or toolcall can be cancelled by the user...
     fn fix_mistral_alternating(self) -> ChatCompletionParameters;
 }
 
 impl FixMistralAlternating for ChatCompletionParameters {
     fn fix_mistral_alternating(self) -> ChatCompletionParameters {
-        if !self.model.to_lowercase().contains("mistral")  {
+        if !self.model.to_lowercase().contains("mistral") {
             return self;
         }
 
@@ -314,20 +329,32 @@ impl FixMistralAlternating for ChatCompletionParameters {
             match &res.messages[i] {
                 ChatMessage::User { .. } => {
                     if pos % 2 != 0 {
-                        res.messages.insert(i, ChatMessage::Assistant {
-                            content: Some(ChatMessageContent::Text("I understand.".to_string())),
-                            reasoning_content: None, tool_calls: None, refusal: None, name: None, audio: None,
-                        });
+                        res.messages.insert(
+                            i,
+                            ChatMessage::Assistant {
+                                content: Some(ChatMessageContent::Text(
+                                    "I understand.".to_string(),
+                                )),
+                                reasoning_content: None,
+                                tool_calls: None,
+                                refusal: None,
+                                name: None,
+                                audio: None,
+                            },
+                        );
                     }
                     pos += 1;
                 }
                 ChatMessage::Assistant { tool_calls, .. } => {
                     if tool_calls.as_ref().map_or(true, |calls| calls.is_empty()) {
                         if pos % 2 == 0 {
-                            res.messages.insert(i, ChatMessage::User {
-                                content: ChatMessageContent::Text("Go ahead.".to_string()),
-                                name: None, 
-                            });
+                            res.messages.insert(
+                                i,
+                                ChatMessage::User {
+                                    content: ChatMessageContent::Text("Go ahead.".to_string()),
+                                    name: None,
+                                },
+                            );
                         }
                         pos += 1;
                     }

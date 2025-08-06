@@ -1,11 +1,14 @@
-use std::sync::Arc;
 use async_trait::async_trait;
 use schemars::json_schema;
 use serde_json::json;
+use std::sync::Arc;
 
-use openai_dive::v1::resources::chat::{ChatCompletionFunction, ChatCompletionParameters, ChatCompletionParametersBuilder, ChatCompletionResponse, ChatCompletionTool, ChatCompletionToolChoice, ChatCompletionToolType, ChatMessage, Function, ToolCall};
 use crate::{provider::LlmError, tool::ToolBox, LlmClient, ToolDescription};
-
+use openai_dive::v1::resources::chat::{
+    ChatCompletionFunction, ChatCompletionParameters, ChatCompletionParametersBuilder,
+    ChatCompletionResponse, ChatCompletionTool, ChatCompletionToolChoice, ChatCompletionToolType,
+    ChatMessage, Function, ToolCall,
+};
 
 pub struct NoOp {}
 
@@ -30,19 +33,21 @@ pub trait FunctionCallingRequiredBuilder {
 impl FunctionCallingRequiredBuilder for ChatCompletionParametersBuilder {
     fn with_function_calling_required(&mut self, tools: &ToolBox) -> &mut Self {
         let mut tools = tools.clone();
-        tools.push(Arc::new(NoOp{}));
+        tools.push(Arc::new(NoOp {}));
 
-        self
-        .tools(tools.iter().map(|t| {
-                ChatCompletionTool {
+        self.tools(
+            tools
+                .iter()
+                .map(|t| ChatCompletionTool {
                     r#type: ChatCompletionToolType::Function,
                     function: ChatCompletionFunction {
                         name: t.name().to_string(),
                         description: Some(t.description().to_string()),
                         parameters: t.parameters_schema(),
                     },
-                }
-            }).collect::<Vec<_>>())
+                })
+                .collect::<Vec<_>>(),
+        )
         .tool_choice(ChatCompletionToolChoice::Required)
     }
 }
@@ -52,7 +57,7 @@ pub trait ToolCallFunctionCallingRequired {
     async fn chat_with_tools_fc_required(
         &self,
         request: ChatCompletionParameters,
-        tools: &ToolBox
+        tools: &ToolBox,
     ) -> Result<ChatCompletionResponse, LlmError>;
 }
 
@@ -61,7 +66,7 @@ impl ToolCallFunctionCallingRequired for LlmClient {
     async fn chat_with_tools_fc_required(
         &self,
         request: ChatCompletionParameters,
-        tools: &ToolBox
+        tools: &ToolBox,
     ) -> Result<ChatCompletionResponse, LlmError> {
         let request = ChatCompletionParametersBuilder::default()
             .model(&request.model)
@@ -79,9 +84,11 @@ impl ToolCallFunctionCallingRequired for LlmClient {
                 let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
                 if let Ok(json) = serde_json::to_string_pretty(&request) {
                     let filename = format!("logs/request_{}.json", timestamp);
-                    let _ = std::path::Path::new(&filename).parent()
-                    .map(std::fs::create_dir_all).unwrap_or(Ok(()))
-                    .and_then(|_| std::fs::write(&filename, json));
+                    let _ = std::path::Path::new(&filename)
+                        .parent()
+                        .map(std::fs::create_dir_all)
+                        .unwrap_or(Ok(()))
+                        .and_then(|_| std::fs::write(&filename, json));
                 }
             })
             .map_err(|e| LlmError::from(e.to_string()))?;
@@ -90,7 +97,11 @@ impl ToolCallFunctionCallingRequired for LlmClient {
         match &mut response.choices[0].message {
             ChatMessage::Assistant { tool_calls, .. } => {
                 if let Some(calls) = tool_calls {
-                    if let [ToolCall { function: Function { name, .. }, .. }] = calls.as_slice() {
+                    if let [ToolCall {
+                        function: Function { name, .. },
+                        ..
+                    }] = calls.as_slice()
+                    {
                         if name == "no_op" {
                             *tool_calls = None;
                         }
@@ -100,6 +111,6 @@ impl ToolCallFunctionCallingRequired for LlmClient {
             _ => {}
         }
 
-        Ok(response)  
+        Ok(response)
     }
 }

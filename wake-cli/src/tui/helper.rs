@@ -1,7 +1,12 @@
 use ansi_to_tui::IntoText;
-use ratatui::{layout::Rect, style::{Color, Style, Stylize}, symbols::border, text::{Line, Span}, widgets::{Block, Borders, Padding, Widget}, Frame};
-
-
+use ratatui::{
+    layout::Rect,
+    style::{Color, Style, Stylize},
+    symbols::border,
+    text::{Line, Span},
+    widgets::{Block, Borders, Padding, Widget},
+    Frame,
+};
 
 pub struct HelpArea;
 
@@ -14,8 +19,10 @@ impl HelpArea {
             "",
             "  Available Commands:",
             "  /exit                exit from the tui",
-            "  /tc <method>         set tool call method: [auto | fc | fc2 | so]"
-        ].join("\n").to_string()
+            "  /tc <method>         set tool call method: [auto | fc | fc2 | so]",
+        ]
+        .join("\n")
+        .to_string()
     }
 }
 
@@ -28,9 +35,6 @@ impl HelpArea {
         let helper_text = self.helper_msg();
         let x = helper_text.into_text().unwrap();
         let x = x.style(Style::default().fg(Color::DarkGray).dim());
-        f.render_widget(
-            x, 
-            area
-        );
+        f.render_widget(x, area);
     }
 }

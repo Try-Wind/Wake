@@ -1,11 +1,11 @@
+use super::super::{EditTool, FsOperationLog, FsOperationType};
 use super::structs::MultiEditToolParams;
-use super::super::{FsOperationLog, FsOperationType, EditTool};
 use crate::tools::{tool, ToolResult};
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct MultiEditTool {
@@ -16,10 +16,17 @@ pub struct MultiEditTool {
 impl MultiEditTool {
     pub fn new(operation_log: Arc<FsOperationLog>) -> Self {
         let edit_tool = EditTool::new(operation_log.clone());
-        Self { operation_log, edit_tool }
+        Self {
+            operation_log,
+            edit_tool,
+        }
     }
-    
-    async fn perform_multi_edit(&self, params: &MultiEditToolParams, preview: bool) -> Result<(String, Vec<usize>), String> {
+
+    async fn perform_multi_edit(
+        &self,
+        params: &MultiEditToolParams,
+        preview: bool,
+    ) -> Result<(String, Vec<usize>), String> {
         let path = Path::new(&params.file_path);
 
         // Check if file exists
@@ -34,11 +41,16 @@ impl MultiEditTool {
 
         // Apply each edit operation sequentially on content
         for (index, edit) in params.edits.iter().enumerate() {
-            match self.edit_tool.perform_edit_on_content(&current_content, &edit.old_string, &edit.new_string, edit.replace_all) {
+            match self.edit_tool.perform_edit_on_content(
+                &current_content,
+                &edit.old_string,
+                &edit.new_string,
+                edit.replace_all,
+            ) {
                 Ok((new_content, replacements)) => {
                     current_content = new_content;
                     replacements_per_edit.push(replacements);
-                },
+                }
                 Err(error) => {
                     return Err(format!("Edit #{}: {}", index + 1, error));
                 }
@@ -46,11 +58,14 @@ impl MultiEditTool {
         }
 
         // Generate comprehensive diff
-        let diff = self.edit_tool.myers_diff(&original_content, &current_content);
-        
+        let diff = self
+            .edit_tool
+            .myers_diff(&original_content, &current_content);
+
         // Only write to file if not preview mode
         if !preview {
-            self.edit_tool.commit_edit(&params.file_path, &current_content)?;
+            self.edit_tool
+                .commit_edit(&params.file_path, &current_content)?;
         }
 
         Ok((diff, replacements_per_edit))
@@ -82,7 +97,11 @@ impl MultiEditTool {
         }
 
         // Validate that the file has been read first
-        if let Err(err) = self.operation_log.validate_edit_permission(&params.file_path).await {
+        if let Err(err) = self
+            .operation_log
+            .validate_edit_permission(&params.file_path)
+            .await
+        {
             return ToolResult::error(err);
         }
 
@@ -90,26 +109,39 @@ impl MultiEditTool {
             Ok((message, replacements_per_edit)) => {
                 // Log the multiedit operation only if not preview
                 if !preview {
-                    self.operation_log.log_operation(FsOperationType::MultiEdit, params.file_path.clone()).await;
+                    self.operation_log
+                        .log_operation(FsOperationType::MultiEdit, params.file_path.clone())
+                        .await;
                 }
-                
+
                 let mut meta = HashMap::new();
                 meta.insert("path".to_string(), json!(params.file_path));
                 meta.insert("edit_count".to_string(), json!(params.edits.len()));
-                meta.insert("total_replacements".to_string(), json!(replacements_per_edit.iter().sum::<usize>()));
-                meta.insert("replacements_per_edit".to_string(), json!(replacements_per_edit));
+                meta.insert(
+                    "total_replacements".to_string(),
+                    json!(replacements_per_edit.iter().sum::<usize>()),
+                );
+                meta.insert(
+                    "replacements_per_edit".to_string(),
+                    json!(replacements_per_edit),
+                );
                 meta.insert("preview_mode".to_string(), json!(preview));
 
                 // Add detailed information about each edit
-                let edit_details: Vec<serde_json::Value> = params.edits.iter().enumerate().map(|(i, edit)| {
-                    json!({
-                        "index": i,
-                        "old_string": edit.old_string,
-                        "new_string": edit.new_string,
-                        "replace_all": edit.replace_all,
-                        "replacements_made": replacements_per_edit[i]
+                let edit_details: Vec<serde_json::Value> = params
+                    .edits
+                    .iter()
+                    .enumerate()
+                    .map(|(i, edit)| {
+                        json!({
+                            "index": i,
+                            "old_string": edit.old_string,
+                            "new_string": edit.new_string,
+                            "replace_all": edit.replace_all,
+                            "replacements_made": replacements_per_edit[i]
+                        })
                     })
-                }).collect();
+                    .collect();
                 meta.insert("edit_details".to_string(), json!(edit_details));
 
                 // Add file size information
@@ -121,10 +153,12 @@ impl MultiEditTool {
                     output: message,
                     metadata: Some(meta),
                 }
-            },
-            Err(e) => {
-                ToolResult::error(format!("MultiEdit {} failed: {}", if preview { "preview" } else { "" }, e))
             }
+            Err(e) => ToolResult::error(format!(
+                "MultiEdit {} failed: {}",
+                if preview { "preview" } else { "" },
+                e
+            )),
         }
     }
 }

@@ -1,26 +1,26 @@
+use crate::tools::{Tool, ToolCapability, ToolResult};
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use crate::tools::{Tool, ToolResult, ToolCapability};
 use wake_llm::ToolDescription;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ProtocolDebuggerArgs {
     /// Communication protocol to debug (I2C, SPI, UART, CAN, OneWire)
     pub protocol: String,
-    
+
     /// The issue or error being experienced
     pub issue: String,
-    
+
     /// Hardware setup details (voltage levels, pull-up resistors, etc.)
     pub hardware_setup: Option<String>,
-    
+
     /// Communication parameters (baud rate, clock speed, etc.)
     pub parameters: Option<String>,
-    
+
     /// Error messages or symptoms
     pub error_messages: Option<String>,
-    
+
     /// Captured data or logic analyzer output (if available)
     pub captured_data: Option<String>,
 }
@@ -31,34 +31,44 @@ impl ProtocolDebugger {
     pub fn new() -> Self {
         Self
     }
-    
+
     fn analyze_i2c_issue(&self, args: &ProtocolDebuggerArgs) -> String {
         let mut analysis = String::from("## I2C Protocol Debug Analysis\n\n");
-        
+
         analysis.push_str("### Common I2C Issues Check:\n\n");
-        
+
         // Check for common I2C problems
-        if args.issue.to_lowercase().contains("nack") || args.issue.to_lowercase().contains("not acknowledged") {
+        if args.issue.to_lowercase().contains("nack")
+            || args.issue.to_lowercase().contains("not acknowledged")
+        {
             analysis.push_str("**NACK (Not Acknowledged) Issues:**\n");
-            analysis.push_str("1. **Wrong Device Address**: Verify the I2C address (7-bit vs 8-bit confusion)\n");
-            analysis.push_str("   - Many datasheets show 8-bit address, but most libraries expect 7-bit\n");
+            analysis.push_str(
+                "1. **Wrong Device Address**: Verify the I2C address (7-bit vs 8-bit confusion)\n",
+            );
+            analysis.push_str(
+                "   - Many datasheets show 8-bit address, but most libraries expect 7-bit\n",
+            );
             analysis.push_str("   - Try shifting address right by 1 bit: `address >> 1`\n\n");
             analysis.push_str("2. **Device Not Powered**: Check VCC and GND connections\n");
             analysis.push_str("3. **Device in Reset**: Some devices need time after power-up\n");
             analysis.push_str("   - Add 100ms delay after power-on\n\n");
         }
-        
-        if args.issue.to_lowercase().contains("garbage") || args.issue.to_lowercase().contains("wrong data") {
+
+        if args.issue.to_lowercase().contains("garbage")
+            || args.issue.to_lowercase().contains("wrong data")
+        {
             analysis.push_str("**Data Corruption Issues:**\n");
             analysis.push_str("1. **Pull-up Resistors**: Check pull-up resistor values\n");
             analysis.push_str("   - Typical: 4.7kΩ for 100kHz, 2.2kΩ for 400kHz\n");
             analysis.push_str("   - Formula: R_min = (V_dd - 0.4V) / 3mA\n\n");
-            analysis.push_str("2. **Clock Stretching**: Some devices need clock stretching support\n");
+            analysis
+                .push_str("2. **Clock Stretching**: Some devices need clock stretching support\n");
             analysis.push_str("3. **Bus Capacitance**: Long wires increase capacitance\n");
             analysis.push_str("   - Maximum: 400pF for standard mode\n\n");
         }
-        
-        if args.issue.to_lowercase().contains("stuck") || args.issue.to_lowercase().contains("hang") {
+
+        if args.issue.to_lowercase().contains("stuck") || args.issue.to_lowercase().contains("hang")
+        {
             analysis.push_str("**Bus Stuck/Hanging Issues:**\n");
             analysis.push_str("1. **SDA Stuck Low**: Device might be holding SDA low\n");
             analysis.push_str("   ```c\n");
@@ -73,7 +83,7 @@ impl ProtocolDebugger {
             analysis.push_str("   ```\n\n");
             analysis.push_str("2. **Multi-Master Conflict**: Check if multiple masters on bus\n");
         }
-        
+
         // Add hardware setup specific advice
         if let Some(setup) = &args.hardware_setup {
             if setup.contains("3.3") && setup.contains("5") {
@@ -85,7 +95,7 @@ impl ProtocolDebugger {
                 analysis.push_str("  3. Check if 5V device is 3.3V tolerant\n\n");
             }
         }
-        
+
         analysis.push_str("### Debugging Steps:\n\n");
         analysis.push_str("1. **Scan for Devices**:\n");
         analysis.push_str("   ```c\n");
@@ -96,27 +106,33 @@ impl ProtocolDebugger {
         analysis.push_str("       i2c_stop();\n");
         analysis.push_str("   }\n");
         analysis.push_str("   ```\n\n");
-        
+
         analysis.push_str("2. **Check Signal Quality**: Use oscilloscope or logic analyzer\n");
         analysis.push_str("3. **Verify Timing**: Ensure setup and hold times are met\n");
         analysis.push_str("4. **Test with Lower Speed**: Try 10kHz or 50kHz first\n");
-        
+
         analysis
     }
-    
+
     fn analyze_spi_issue(&self, args: &ProtocolDebuggerArgs) -> String {
         let mut analysis = String::from("## SPI Protocol Debug Analysis\n\n");
-        
+
         analysis.push_str("### Common SPI Issues Check:\n\n");
-        
-        if args.issue.to_lowercase().contains("miso") || args.issue.to_lowercase().contains("no response") {
+
+        if args.issue.to_lowercase().contains("miso")
+            || args.issue.to_lowercase().contains("no response")
+        {
             analysis.push_str("**MISO/No Response Issues:**\n");
-            analysis.push_str("1. **CS (Chip Select) Polarity**: Most devices need CS LOW to communicate\n");
+            analysis.push_str(
+                "1. **CS (Chip Select) Polarity**: Most devices need CS LOW to communicate\n",
+            );
             analysis.push_str("2. **MISO Connection**: Verify MISO is connected (not MOSI-MOSI)\n");
             analysis.push_str("3. **Device Power**: Check if device is properly powered\n\n");
         }
-        
-        if args.issue.to_lowercase().contains("wrong") || args.issue.to_lowercase().contains("shifted") {
+
+        if args.issue.to_lowercase().contains("wrong")
+            || args.issue.to_lowercase().contains("shifted")
+        {
             analysis.push_str("**Data Corruption/Shifted Issues:**\n");
             analysis.push_str("1. **SPI Mode Mismatch**: Check CPOL and CPHA settings\n");
             analysis.push_str("   - Mode 0: CPOL=0, CPHA=0 (most common)\n");
@@ -126,7 +142,7 @@ impl ProtocolDebugger {
             analysis.push_str("2. **Bit Order**: Check MSB vs LSB first\n");
             analysis.push_str("3. **Clock Speed Too High**: Try reducing SPI clock\n\n");
         }
-        
+
         analysis.push_str("### SPI Timing Diagram:\n");
         analysis.push_str("```\n");
         analysis.push_str("CS    ‾‾‾\\_______________/‾‾‾\n");
@@ -134,7 +150,7 @@ impl ProtocolDebugger {
         analysis.push_str("MOSI  ___X___X___X___X_____\n");
         analysis.push_str("MISO  ___X___X___X___X_____\n");
         analysis.push_str("```\n\n");
-        
+
         analysis.push_str("### Debug Code Example:\n");
         analysis.push_str("```c\n");
         analysis.push_str("// Test SPI communication\n");
@@ -151,16 +167,18 @@ impl ProtocolDebugger {
         analysis.push_str("    return rx_data;\n");
         analysis.push_str("}\n");
         analysis.push_str("```\n");
-        
+
         analysis
     }
-    
+
     fn analyze_uart_issue(&self, args: &ProtocolDebuggerArgs) -> String {
         let mut analysis = String::from("## UART Protocol Debug Analysis\n\n");
-        
+
         analysis.push_str("### Common UART Issues Check:\n\n");
-        
-        if args.issue.to_lowercase().contains("garbage") || args.issue.to_lowercase().contains("symbols") {
+
+        if args.issue.to_lowercase().contains("garbage")
+            || args.issue.to_lowercase().contains("symbols")
+        {
             analysis.push_str("**Garbage Data/Wrong Characters:**\n");
             analysis.push_str("1. **Baud Rate Mismatch**: Most common issue!\n");
             analysis.push_str("   - Verify both devices use same baud rate\n");
@@ -171,8 +189,10 @@ impl ProtocolDebugger {
             analysis.push_str("   - Check stop bits (usually 1)\n");
             analysis.push_str("   - Format notation: 8N1 = 8 data, No parity, 1 stop\n\n");
         }
-        
-        if args.issue.to_lowercase().contains("no data") || args.issue.to_lowercase().contains("not receiving") {
+
+        if args.issue.to_lowercase().contains("no data")
+            || args.issue.to_lowercase().contains("not receiving")
+        {
             analysis.push_str("**No Data Received:**\n");
             analysis.push_str("1. **TX/RX Swapped**: Most common wiring issue\n");
             analysis.push_str("   - Device A TX → Device B RX\n");
@@ -182,7 +202,7 @@ impl ProtocolDebugger {
             analysis.push_str("   - TTL/CMOS: 0V/3.3V or 0V/5V\n");
             analysis.push_str("   - RS-232: ±3V to ±15V (inverted!)\n\n");
         }
-        
+
         // Check for baud rate in parameters
         if let Some(params) = &args.parameters {
             if params.contains("115200") || params.contains("high") {
@@ -192,7 +212,7 @@ impl ProtocolDebugger {
                 analysis.push_str("- Consider using lower baud rate for testing\n\n");
             }
         }
-        
+
         analysis.push_str("### UART Signal Example:\n");
         analysis.push_str("```\n");
         analysis.push_str("     Start  D0 D1 D2 D3 D4 D5 D6 D7 Stop\n");
@@ -202,16 +222,16 @@ impl ProtocolDebugger {
         analysis.push_str("      \n");
         analysis.push_str("Character 'U' (0x55) = 01010101 binary\n");
         analysis.push_str("```\n\n");
-        
+
         analysis.push_str("### Debug Tips:\n");
         analysis.push_str("1. **Loopback Test**: Connect TX to RX on same device\n");
         analysis.push_str("2. **Send Known Pattern**: Send 'U' (0x55) for 01010101 pattern\n");
         analysis.push_str("3. **Use Terminal Software**: Test with known-good terminal first\n");
         analysis.push_str("4. **Check with Oscilloscope**: Measure actual bit timing\n");
-        
+
         analysis
     }
-    
+
     fn analyze_general_issue(&self, args: &ProtocolDebuggerArgs) -> String {
         format!(
             "## {} Protocol Debug Analysis\n\n\
@@ -241,22 +261,21 @@ impl ProtocolDebugger {
 #[async_trait]
 impl Tool for ProtocolDebugger {
     type Params = ProtocolDebuggerArgs;
-    
+
     fn capabilities(&self) -> &'static [ToolCapability] {
         &[ToolCapability::Read]
     }
-    
+
     async fn execute(&self, args: Self::Params) -> ToolResult {
-        
         let analysis = match args.protocol.to_uppercase().as_str() {
             "I2C" | "IIC" | "TWI" => self.analyze_i2c_issue(&args),
             "SPI" => self.analyze_spi_issue(&args),
             "UART" | "SERIAL" | "RS232" | "RS-232" => self.analyze_uart_issue(&args),
             _ => self.analyze_general_issue(&args),
         };
-        
+
         let mut result = analysis;
-        
+
         // Add captured data analysis if provided
         if let Some(data) = &args.captured_data {
             result.push_str("\n### Captured Data Analysis:\n");
@@ -265,7 +284,7 @@ impl Tool for ProtocolDebugger {
             result.push_str("- Check for signal integrity issues\n");
             result.push_str("- Verify protocol compliance\n");
         }
-        
+
         // Add specific recommendations based on error messages
         if let Some(errors) = &args.error_messages {
             result.push_str("\n### Error Message Analysis:\n");
@@ -282,7 +301,7 @@ impl Tool for ProtocolDebugger {
                 result.push_str("  - Add delays between transactions\n");
             }
         }
-        
+
         ToolResult::success(result)
     }
 }
@@ -291,11 +310,11 @@ impl ToolDescription for ProtocolDebugger {
     fn name(&self) -> &'static str {
         "protocol_debugger"
     }
-    
+
     fn description(&self) -> &'static str {
         "Debug hardware communication protocol issues. Analyzes I2C, SPI, UART, CAN and other protocol problems, providing specific troubleshooting steps and solutions."
     }
-    
+
     fn parameters_schema(&self) -> serde_json::Value {
         serde_json::to_value(schemars::schema_for!(ProtocolDebuggerArgs))
             .unwrap_or_else(|_| serde_json::json!({}))

@@ -1,5 +1,5 @@
-use std::env;
 use clap::ValueEnum;
+use std::env;
 use std::process::Command;
 
 pub static MAGIC_COOKIE: &str = ">>>WAKE_HOOKS_INJECTED<<<";
@@ -29,13 +29,13 @@ impl Shell {
         Self { shell_type, path }
     }
 
-
     pub fn generate_rc_content(&self) -> String {
         let wake_binary = get_wake_binary_path();
-    
+
         match self.shell_type {
             ShellType::Sh | ShellType::Bash => {
-                format!(r#"# Wake hook for POSIX sh
+                format!(
+                    r#"# Wake hook for POSIX sh
 # Shell path: {}
 # Pre-command hook (captures command before execution)
 wake_precmd() {{
@@ -63,11 +63,14 @@ export PROMPT_COMMAND="${{PROMPT_COMMAND:+$PROMPT_COMMAND; }}wake_postcmd"
 echo "{}"
 # Capture command in DEBUG trap (before execution)
 trap 'wake_precmd' DEBUG
-    "#, self.path, wake_binary, wake_binary, MAGIC_COOKIE)
+    "#,
+                    self.path, wake_binary, wake_binary, MAGIC_COOKIE
+                )
             }
 
             ShellType::Zsh => {
-                format!(r#"# Wake hook for zsh
+                format!(
+                    r#"# Wake hook for zsh
 # Shell path: {}
 # Capture command before execution
 wake_preexec_hook() {{
@@ -94,11 +97,14 @@ autoload -Uz add-zsh-hook
 add-zsh-hook preexec wake_preexec_hook
 add-zsh-hook precmd  wake_precmd_hook
 echo "{}"
-    "#, self.path, wake_binary, wake_binary, MAGIC_COOKIE)
-                }
-    
+    "#,
+                    self.path, wake_binary, wake_binary, MAGIC_COOKIE
+                )
+            }
+
             ShellType::Fish => {
-                format!(r#"# Wake hook for fish
+                format!(
+                    r#"# Wake hook for fish
 # Shell path: {}
 # Pre-command hook (captures command before execution)
 function wake_precmd --on-event fish_preexec
@@ -123,11 +129,14 @@ function wake_postcmd --on-event fish_postexec
 end
 
 echo "{}"
-    "#, self.path, wake_binary, wake_binary, MAGIC_COOKIE)
-                }
-    
+    "#,
+                    self.path, wake_binary, wake_binary, MAGIC_COOKIE
+                )
+            }
+
             ShellType::Powershell => {
-                format!(r#"# Wake hook for PowerShell
+                format!(
+                    r#"# Wake hook for PowerShell
 # Shell path: {}
 # Initialize command variable
 $global:WAKE_CURRENT_CMD = $null
@@ -204,11 +213,12 @@ function prompt {{
 # Usage examples:
 # With PSReadLine (automatic): Just run commands normally
 # Without PSReadLine (manual): Set-WakeCommand "your-command"; your-command
-    "#, self.path, wake_binary, wake_binary)
+    "#,
+                    self.path, wake_binary, wake_binary
+                )
             }
         }
     }
-
 }
 
 fn get_wake_binary_path() -> String {
@@ -238,7 +248,7 @@ pub fn find_shell_by_type(shell_type: ShellType) -> Result<Shell, Box<dyn std::e
         ShellType::Bash => "bash",
         ShellType::Zsh => "zsh",
         ShellType::Fish => "fish",
-        ShellType::Powershell => "pwsh"
+        ShellType::Powershell => "pwsh",
     };
 
     if let Some(path) = find_bin_path(shell_name) {
@@ -251,12 +261,8 @@ pub fn find_shell_by_type(shell_type: ShellType) -> Result<Shell, Box<dyn std::e
 pub fn detect_shell() -> Result<Shell, Box<dyn std::error::Error>> {
     // Try SHELL environment variable first
     if let Ok(shell_path) = env::var("SHELL") {
-        let shell_name = shell_path
-            .split('/')
-            .last()
-            .unwrap_or("")
-            .to_lowercase();
-        
+        let shell_name = shell_path.split('/').last().unwrap_or("").to_lowercase();
+
         let detected_shell_type = match shell_name.as_str() {
             "sh" => Some(ShellType::Sh),
             "bash" => Some(ShellType::Bash),
@@ -301,10 +307,7 @@ pub fn detect_shell() -> Result<Shell, Box<dyn std::error::Error>> {
 
 fn find_bin_path(shell_name: &str) -> Option<String> {
     // First try using 'which' command
-    if let Ok(output) = Command::new("which")
-        .arg(shell_name)
-        .output()
-    {
+    if let Ok(output) = Command::new("which").arg(shell_name).output() {
         if output.status.success() {
             if let Ok(path) = String::from_utf8(output.stdout) {
                 return Some(path.trim().to_string());
@@ -315,7 +318,7 @@ fn find_bin_path(shell_name: &str) -> Option<String> {
     // Fallback: manually search PATH
     if let Ok(path_var) = env::var("PATH") {
         let path_separator = if cfg!(windows) { ';' } else { ':' };
-        
+
         for path_dir in path_var.split(path_separator) {
             let shell_path = if cfg!(windows) {
                 // On Windows, check for .exe extension
@@ -336,13 +339,13 @@ fn find_bin_path(shell_name: &str) -> Option<String> {
                     continue;
                 }
             };
-            
+
             if let Some(path_str) = shell_path.to_str() {
                 return Some(path_str.to_string());
             }
         }
     }
-    
+
     // Also check common shell locations on Unix-like systems
     if !cfg!(windows) {
         let common_locations = [
@@ -350,14 +353,14 @@ fn find_bin_path(shell_name: &str) -> Option<String> {
             format!("/usr/bin/{}", shell_name),
             format!("/usr/local/bin/{}", shell_name),
         ];
-        
+
         for location in &common_locations {
             if std::path::Path::new(location).exists() {
                 return Some(location.clone());
             }
         }
     }
-    
+
     None
 }
 
@@ -366,7 +369,7 @@ pub fn write_to_shell_history(command: &str) {
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::process::Command;
-    
+
     // Try to detect the shell and write to its history file
     if let Ok(shell) = env::var("SHELL") {
         let shell_type = if shell.contains("zsh") {
@@ -380,10 +383,14 @@ pub fn write_to_shell_history(command: &str) {
         } else {
             return; // Unknown shell
         };
-        
+
         let history_file = get_history_file_path(&shell_type);
-        
-        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&history_file) {
+
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&history_file)
+        {
             let formatted_command = format_command_for_shell(&shell_type, command);
             if let Err(e) = file.write_all(formatted_command.as_bytes()) {
                 //eprintln!("Failed to write to history: {}", e);
@@ -400,20 +407,17 @@ pub fn write_to_shell_history(command: &str) {
 
 fn get_history_file_path(shell_type: &ShellType) -> String {
     use std::env;
-    
+
     match shell_type {
-        ShellType::Zsh => {
-            env::var("HISTFILE").unwrap_or_else(|_| 
-                format!("{}/.zsh_history", env::var("HOME").unwrap_or_default())
-            )
-        }
-        ShellType::Bash | ShellType::Sh => {
-            env::var("HISTFILE").unwrap_or_else(|_| 
-                format!("{}/.bash_history", env::var("HOME").unwrap_or_default())
-            )
-        }
+        ShellType::Zsh => env::var("HISTFILE")
+            .unwrap_or_else(|_| format!("{}/.zsh_history", env::var("HOME").unwrap_or_default())),
+        ShellType::Bash | ShellType::Sh => env::var("HISTFILE")
+            .unwrap_or_else(|_| format!("{}/.bash_history", env::var("HOME").unwrap_or_default())),
         ShellType::Fish => {
-            format!("{}/.local/share/fish/fish_history", env::var("HOME").unwrap_or_default())
+            format!(
+                "{}/.local/share/fish/fish_history",
+                env::var("HOME").unwrap_or_default()
+            )
         }
         ShellType::Powershell => {
             // PowerShell history is more complex, skip for now
@@ -424,12 +428,12 @@ fn get_history_file_path(shell_type: &ShellType) -> String {
 
 fn format_command_for_shell(shell_type: &ShellType, command: &str) -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    
+
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    
+
     match shell_type {
         ShellType::Zsh => {
             // ZSH extended history format: : timestamp:duration;command

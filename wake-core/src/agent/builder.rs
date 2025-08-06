@@ -1,10 +1,10 @@
-use wake_llm::ChatMessage;
 use uuid::Uuid;
+use wake_llm::ChatMessage;
 
-use crate::tools::AnyTool;
-use super::Brain;
-use super::AgentCore;
 use super::claims::ClaimManager;
+use super::AgentCore;
+use super::Brain;
+use crate::tools::AnyTool;
 
 /// Builder for AgentCore
 pub struct AgentBuilder {
@@ -34,17 +34,17 @@ impl AgentBuilder {
         self.session_id = session_id.to_string();
         self
     }
-        
+
     pub fn brain(mut self, brain: Box<dyn Brain>) -> Self {
         self.brain = brain;
         self
     }
-    
+
     pub fn goal(mut self, goal: &str) -> Self {
         self.goal = Some(goal.to_string());
         self
     }
-    
+
     pub fn with_traces(mut self, trace: Vec<ChatMessage>) -> Self {
         self.trace = trace;
         self
@@ -54,7 +54,7 @@ impl AgentBuilder {
         self.available_tools = available_tools;
         self
     }
-    
+
     pub fn permissions(mut self, permissions: ClaimManager) -> Self {
         self.permissions = permissions;
         self
@@ -67,17 +67,20 @@ impl AgentBuilder {
     }
 
     /// Build the AgentCore with required runtime fields
-    pub fn build(mut self) -> AgentCore {        
+    pub fn build(mut self) -> AgentCore {
         if let Some(goal) = self.goal {
-            self.trace.push(ChatMessage::User { content: wake_llm::ChatMessageContent::Text(goal.clone()), name: None });
+            self.trace.push(ChatMessage::User {
+                content: wake_llm::ChatMessageContent::Text(goal.clone()),
+                name: None,
+            });
         }
-        
+
         AgentCore::new(
             self.session_id.clone(),
             self.brain,
             self.trace,
             self.available_tools,
-            self.permissions
+            self.permissions,
         )
     }
 }

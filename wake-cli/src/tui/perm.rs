@@ -3,15 +3,18 @@ use std::time::Duration;
 use ansi_to_tui::IntoText;
 use crossterm::event::{Event, KeyCode, KeyEvent, MouseEvent};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect}, 
-    style::{Color, Style, Stylize}, 
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style, Stylize},
     symbols::border,
-    text::{Line, Span, Text}, 
-    widgets::{Block, Borders, List, ListDirection, ListItem, Padding, Paragraph, Widget}, 
-    Frame
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, List, ListDirection, ListItem, Padding, Paragraph, Widget},
+    Frame,
 };
-use wake_core::{agent::{events::PermissionRequest, output::PrettyFormatter, PermissionResponse}, tools::{ToolCall, ToolResult}};
 use tui_textarea::{Input, TextArea};
+use wake_core::{
+    agent::{events::PermissionRequest, output::PrettyFormatter, PermissionResponse},
+    tools::{ToolCall, ToolResult},
+};
 
 use super::theme::WAKE_YELLOW;
 
@@ -19,8 +22,8 @@ pub enum PermissionModalAction {
     Nope,
     Response {
         request_id: String,
-        choice: PermissionResponse
-    }
+        choice: PermissionResponse,
+    },
 }
 
 #[derive(Clone)]
@@ -31,7 +34,7 @@ pub struct PermissionWidget<'a> {
 
     selected_index: usize,
     formatted_request: String,
-    preview: TextArea<'a>
+    preview: TextArea<'a>,
 }
 
 impl PermissionWidget<'_> {
@@ -41,7 +44,7 @@ impl PermissionWidget<'_> {
         let mut preview = TextArea::from(formatted_request.into_text().unwrap());
         preview.set_cursor_line_style(Style::reset());
         preview.set_cursor_style(Style::reset());
-        
+
         Self {
             request_id,
             request,
@@ -49,13 +52,16 @@ impl PermissionWidget<'_> {
             remaining_perms: total,
 
             formatted_request,
-            preview
+            preview,
         }
     }
 
-
     pub fn move_up(&mut self) {
-        self.selected_index = if self.selected_index == 0 { 2 } else { self.selected_index - 1 };
+        self.selected_index = if self.selected_index == 0 {
+            2
+        } else {
+            self.selected_index - 1
+        };
     }
 
     pub fn move_down(&mut self) {
@@ -71,13 +77,13 @@ impl PermissionWidget<'_> {
         }
     }
 
-    pub async fn handle_mouse_event(&mut self, mouse_event: MouseEvent) ->  PermissionModalAction {
+    pub async fn handle_mouse_event(&mut self, mouse_event: MouseEvent) -> PermissionModalAction {
         let event: Input = Event::Mouse(mouse_event).into();
         self.preview.input(event);
-        PermissionModalAction::Nope   
+        PermissionModalAction::Nope
     }
 
-    pub async fn handle_key_event(&mut self, key_event: KeyEvent) ->  PermissionModalAction {
+    pub async fn handle_key_event(&mut self, key_event: KeyEvent) -> PermissionModalAction {
         match key_event.code {
             KeyCode::Up => {
                 self.move_up();
@@ -97,12 +103,12 @@ impl PermissionWidget<'_> {
                 let choice = PermissionResponse::Deny;
                 PermissionModalAction::Response { request_id, choice }
             }
-            _ => PermissionModalAction::Nope
+            _ => PermissionModalAction::Nope,
         }
     }
 
     pub fn height(&self) -> u16 {
-       4 // outer permission block 2 + 1 top padding
+        4 // outer permission block 2 + 1 top padding
        + 2 // inner tool preview block 2 (0 padding)
        + self.formatted_request.lines().count() as u16  // preview content
        + 4 // allow, yolo, deny + 1 top space
@@ -112,54 +118,72 @@ impl PermissionWidget<'_> {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .padding(Padding{left: 1, right: 1, top: 1, bottom: 1})
+            .padding(Padding {
+                left: 1,
+                right: 1,
+                top: 1,
+                bottom: 1,
+            })
             .border_style(Style::default().fg(Color::Cyan))
             .title(if self.remaining_perms > 1 {
                 format!(" 🔐 Permission Required ({}/{}) ", 1, self.remaining_perms)
             } else {
                 format!(" 🔐 Permission Required ")
-            });    
+            });
 
         let inner = block.inner(area);
         f.render_widget(block, area);
 
-        let [tool, modal] = Layout::vertical([Constraint::Length(self.formatted_request.lines().count() as u16 + 2), Constraint::Length(4)]).areas(inner);
+        let [tool, modal] = Layout::vertical([
+            Constraint::Length(self.formatted_request.lines().count() as u16 + 2),
+            Constraint::Length(4),
+        ])
+        .areas(inner);
 
         let call = self.request.call.clone();
         let tool_name = PrettyFormatter::capitalize_first(&call.tool_name);
         let context = PrettyFormatter::extract_primary_param(&call.parameters, &call.tool_name);
         let mut title = Line::from(vec![
             Span::styled("🔧 ", Color::White),
-            Span::styled(tool_name,    Style::new().white().bold())
+            Span::styled(tool_name, Style::new().white().bold()),
         ]);
-        if let Some((_,ctx)) = context {
+        if let Some((_, ctx)) = context {
             title.push_span(Span::styled(format!("({})", ctx), Style::new().white()));
         };
 
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .padding(Padding{left: 1, right: 1, top: 0, bottom: 0})
+            .padding(Padding {
+                left: 1,
+                right: 1,
+                top: 0,
+                bottom: 0,
+            })
             .title(title)
             .title_style(Style::default().fg(Color::White))
-            .border_style(Style::default().fg(Color::DarkGray));        
-    
+            .border_style(Style::default().fg(Color::DarkGray));
+
         let inner = block.inner(tool);
         f.render_widget(block, tool);
         f.render_widget(&self.preview, inner);
 
-        let items = ["Allow", "Allow all tools and don't ask again for this session", "Deny"];
+        let items = [
+            "Allow",
+            "Allow all tools and don't ask again for this session",
+            "Deny",
+        ];
         let mut lines = vec![Line::from("Do you want to run this tool?")];
-        for (i,s) in items.into_iter().enumerate() {
+        for (i, s) in items.into_iter().enumerate() {
             if i == self.selected_index {
                 lines.push(Line::from(vec![
                     Span::styled("❯ ", Color::White),
-                    Span::styled(s,    Color::White)
+                    Span::styled(s, Color::White),
                 ]));
             } else {
                 lines.push(Line::from(vec![
                     Span::styled("  ", Color::DarkGray),
-                    Span::styled(s,    Color::DarkGray)
+                    Span::styled(s, Color::DarkGray),
                 ]));
             };
         }

@@ -1,19 +1,26 @@
-pub mod types;
+pub mod bash;
+pub mod fetch;
+pub mod fs;
+pub mod hardware;
 pub mod highlight;
 pub mod todo;
-pub mod fs;
-pub mod fetch;
-pub mod bash;
-pub mod hardware;
+pub mod types;
 
 #[cfg(test)]
 mod tests_llm;
 
+pub use types::{
+    AnyTool, AnyToolBox, Tool, ToolCall, ToolCapability, ToolEmptyParams, ToolError, ToolResult,
+};
 pub use wake_macros::tool;
-pub use types::{Tool, ToolCall, ToolResult, ToolError, ToolCapability, AnyTool, AnyToolBox, ToolEmptyParams};
 
 // Re-export all tools
 pub use bash::BashTool;
 pub use fetch::FetchTool;
-pub use fs::{EditTool, FindTool, LsTool, MultiEditTool, ReadTool, WriteTool, FsOperationLog, FsOperationType, FsOperation, FsOperationSummary};
-pub use todo::{TodoReadTool, TodoWriteTool, TodoStorage, TodoItem, TodoStatus, TodoWriteParams, TodoItemInput};
+pub use fs::{
+    EditTool, FindTool, FsOperation, FsOperationLog, FsOperationSummary, FsOperationType, LsTool,
+    MultiEditTool, ReadTool, WriteTool,
+};
+pub use todo::{
+    TodoItem, TodoItemInput, TodoReadTool, TodoStatus, TodoStorage, TodoWriteParams, TodoWriteTool,
+};

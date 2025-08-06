@@ -1,8 +1,8 @@
 use super::structs::{FetchToolParams, HttpMethod};
-use crate::tools::{ToolResult, tool};
+use crate::tools::{tool, ToolResult};
+use reqwest;
 use serde_json::json;
 use std::collections::HashMap;
-use reqwest;
 use std::time::Duration;
 
 pub struct FetchTool;
@@ -38,7 +38,7 @@ impl FetchTool {
 
         let client = match client {
             Ok(c) => c,
-            Err(e) => return ToolResult::error(format!("Failed to create HTTP client: {}", e))
+            Err(e) => return ToolResult::error(format!("Failed to create HTTP client: {}", e)),
         };
 
         // Build the request
@@ -75,12 +75,15 @@ impl FetchTool {
                     Ok(body) => {
                         let mut meta = HashMap::new();
                         meta.insert("url".to_string(), json!(params.url));
-                        meta.insert("method".to_string(), json!(match params.method {
-                            HttpMethod::Get => "GET",
-                            HttpMethod::Post => "POST",
-                            HttpMethod::Put => "PUT",
-                            HttpMethod::Delete => "DELETE",
-                        }));
+                        meta.insert(
+                            "method".to_string(),
+                            json!(match params.method {
+                                HttpMethod::Get => "GET",
+                                HttpMethod::Post => "POST",
+                                HttpMethod::Put => "PUT",
+                                HttpMethod::Delete => "DELETE",
+                            }),
+                        );
                         meta.insert("status_code".to_string(), json!(status.as_u16()));
                         meta.insert("response_headers".to_string(), json!(headers));
                         meta.insert("content_length".to_string(), json!(body.len()));
@@ -96,11 +99,11 @@ impl FetchTool {
                                 metadata: Some(meta),
                             }
                         }
-                    },
-                    Err(e) => ToolResult::error(format!("Failed to read response body: {}", e))
+                    }
+                    Err(e) => ToolResult::error(format!("Failed to read response body: {}", e)),
                 }
-            },
-            Err(e) => ToolResult::error(format!("HTTP request failed: {}", e))
+            }
+            Err(e) => ToolResult::error(format!("HTTP request failed: {}", e)),
         }
     }
 }

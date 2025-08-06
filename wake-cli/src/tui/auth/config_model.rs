@@ -1,13 +1,13 @@
-use std::{collections::HashMap, io};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::Rect,
-    style::{Color, Style, Modifier},
+    style::{Color, Modifier, Style},
     symbols::border,
     text::{Line, Span, Text},
     widgets::{Block, Borders, Padding, Paragraph},
     Frame,
 };
+use std::{collections::HashMap, io};
 use wake_core::config::config::WakeConfig;
 use wake_llm::provider::ProviderInfo;
 
@@ -32,7 +32,13 @@ const MAX_VISIBLE_MODELS: usize = 20;
 const SCROLL_MARGIN: usize = 10;
 
 impl ModalModel {
-    pub fn new(available_models: Vec<String>, config: WakeConfig, providers: Vec<ProviderInfo>, provider: ProviderInfo, env_values: HashMap<String, String>) -> Self {
+    pub fn new(
+        available_models: Vec<String>,
+        config: WakeConfig,
+        providers: Vec<ProviderInfo>,
+        provider: ProviderInfo,
+        env_values: HashMap<String, String>,
+    ) -> Self {
         let filtered_models = available_models.clone();
         Self {
             all_models: available_models,
@@ -66,13 +72,14 @@ impl ModalModel {
             self.filtered_models = self.all_models.clone();
         } else {
             let query = self.search_query.to_lowercase();
-            self.filtered_models = self.all_models
+            self.filtered_models = self
+                .all_models
                 .iter()
                 .filter(|model| model.to_lowercase().contains(&query))
                 .cloned()
                 .collect();
         }
-        
+
         // Reset selection if it's out of bounds
         if self.selected_index >= self.filtered_models.len() && !self.filtered_models.is_empty() {
             self.selected_index = 0;
@@ -101,7 +108,6 @@ impl ModalModel {
             self.scroll_offset = self.selected_index - SCROLL_MARGIN;
         }
     }
-
 }
 
 impl ModalModel {
@@ -122,8 +128,13 @@ impl ModalModel {
                     return NavAction::None;
                 }
                 let selected_model = &self.filtered_models[self.selected_index];
-                if self.config.is_duplicate_config(&self.provider.name, &self.env_values, selected_model) {
-                    self.error_message = Some("This instance already exists in the configuration".to_string());
+                if self.config.is_duplicate_config(
+                    &self.provider.name,
+                    &self.env_values,
+                    selected_model,
+                ) {
+                    self.error_message =
+                        Some("This instance already exists in the configuration".to_string());
                     return NavAction::None;
                 }
                 return NavAction::Done;
@@ -177,18 +188,23 @@ impl ModalModel {
     }
 
     pub fn draw(&self, frame: &mut Frame, area: Rect) {
-        use ratatui::layout::{Layout, Constraint};
-        
+        use ratatui::layout::{Constraint, Layout};
+
         let title = if self.search_mode {
             format!(" Select Model (Search: {}) ", self.search_query)
         } else {
             " Select Model ".to_string()
         };
-        
+
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .padding(Padding { left: 1, right: 1, top: 1, bottom: 1 })
+            .padding(Padding {
+                left: 1,
+                right: 1,
+                top: 1,
+                bottom: 1,
+            })
             .title(title)
             .style(Style::default().fg(Color::DarkGray));
 
@@ -197,46 +213,48 @@ impl ModalModel {
 
         let constraints = vec![Constraint::Length(1); self.inner_height()];
         let layout_areas = Layout::vertical(constraints).split(inner);
-        
+
         let mut area_index = 0;
-        
+
         // Draw search bar
         if self.search_mode {
             let search_text = format!("Search: {}", self.search_query);
-            let search_paragraph = Paragraph::new(search_text)
-                .style(Style::default().fg(Color::Yellow));
+            let search_paragraph =
+                Paragraph::new(search_text).style(Style::default().fg(Color::Yellow));
             frame.render_widget(search_paragraph, layout_areas[area_index]);
             area_index += 2; // Skip search line and empty line
         }
-        
+
         // Draw visible models
         let end_index = std::cmp::min(
             self.scroll_offset + MAX_VISIBLE_MODELS,
-            self.filtered_models.len()
+            self.filtered_models.len(),
         );
-        
+
         for (display_idx, model_idx) in (self.scroll_offset..end_index).enumerate() {
             // Draw top scroll indicator
-            if self.filtered_models.len() > MAX_VISIBLE_MODELS 
-            && display_idx == 0
-            && self.scroll_offset > 0 {
+            if self.filtered_models.len() > MAX_VISIBLE_MODELS
+                && display_idx == 0
+                && self.scroll_offset > 0
+            {
                 let remaining_above = self.scroll_offset;
                 let scroll_info = format!("... {} more above ...", remaining_above);
-                let scroll_paragraph = Paragraph::new(scroll_info)
-                    .style(Style::default().fg(Color::Blue));
+                let scroll_paragraph =
+                    Paragraph::new(scroll_info).style(Style::default().fg(Color::Blue));
                 frame.render_widget(scroll_paragraph, layout_areas[area_index]);
                 area_index += 1;
                 continue;
             }
-                    
-            // Draw bottom scroll indicator  
-            if self.filtered_models.len() > MAX_VISIBLE_MODELS 
-            && model_idx == end_index - 1 
-            && self.scroll_offset + MAX_VISIBLE_MODELS < self.filtered_models.len() {
+
+            // Draw bottom scroll indicator
+            if self.filtered_models.len() > MAX_VISIBLE_MODELS
+                && model_idx == end_index - 1
+                && self.scroll_offset + MAX_VISIBLE_MODELS < self.filtered_models.len()
+            {
                 let remaining_below = self.filtered_models.len() - end_index;
                 let scroll_info = format!("... {} more below ...", remaining_below);
-                let scroll_paragraph = Paragraph::new(scroll_info)
-                    .style(Style::default().fg(Color::Blue));
+                let scroll_paragraph =
+                    Paragraph::new(scroll_info).style(Style::default().fg(Color::Blue));
                 frame.render_widget(scroll_paragraph, layout_areas[area_index]);
                 area_index += 1;
                 continue;
@@ -244,33 +262,37 @@ impl ModalModel {
 
             let model = &self.filtered_models[model_idx];
             let is_selected = model_idx == self.selected_index;
-            let is_duplicate = self.config.is_duplicate_config(&self.provider.name, &self.env_values, model);
-            
+            let is_duplicate =
+                self.config
+                    .is_duplicate_config(&self.provider.name, &self.env_values, model);
+
             let prefix = if is_selected { "● " } else { "○ " };
             let line = format!("{}{}", prefix, model);
-            
+
             let style = if is_duplicate {
-                Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM)
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM)
             } else if is_selected {
                 Style::default().fg(Color::Green)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
-            
+
             let paragraph = Paragraph::new(line).style(style);
             frame.render_widget(paragraph, layout_areas[area_index]);
             area_index += 1;
         }
-        
+
         // Draw error message if present
         if let Some(error) = &self.error_message {
             area_index += 1; // Skip empty line
-            let error_paragraph = Paragraph::new(error.clone())
-                .style(Style::default().fg(Color::Red));
+            let error_paragraph =
+                Paragraph::new(error.clone()).style(Style::default().fg(Color::Red));
             frame.render_widget(error_paragraph, layout_areas[area_index]);
             area_index += 1;
         }
-        
+
         // Draw help text
         area_index += 1; // Skip empty line
         let help_text = if self.search_mode {
@@ -278,9 +300,7 @@ impl ModalModel {
         } else {
             "↑↓ navigate • Type to search • Enter select • Esc back"
         };
-        let help_paragraph = Paragraph::new(help_text)
-            .style(Style::default().fg(Color::DarkGray));
+        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::DarkGray));
         frame.render_widget(help_paragraph, layout_areas[area_index]);
     }
-
 }

@@ -1,24 +1,23 @@
-use std::sync::Arc;
 use async_trait::async_trait;
-use wake_llm::{ChatMessage, ToolCallMethod};
+use std::sync::Arc;
 use tokio::sync::RwLock;
+use wake_llm::{ChatMessage, ToolCallMethod};
 
-use crate::tools::types::AnyToolBox;
 use super::error::AgentError;
-
+use crate::tools::types::AnyToolBox;
 
 /// ThinkerContext is the agent internal state
 pub struct ThinkerContext {
-    pub trace:           Arc<RwLock<Vec<ChatMessage>>>,
+    pub trace: Arc<RwLock<Vec<ChatMessage>>>,
     pub available_tools: AnyToolBox,
-    pub method:          ToolCallMethod
+    pub method: ToolCallMethod,
 }
 
 /// ThinkerFlowControl drives the agentic flow
 #[derive(Debug, Clone)]
 pub enum ThinkerFlowControl {
     AgentContinue,
-    AgentPause
+    AgentPause,
 }
 
 /// This structure pilot the flow of the Agent
@@ -27,28 +26,28 @@ pub enum ThinkerFlowControl {
 #[derive(Debug, Clone)]
 pub struct ThinkerDecision {
     pub message: ChatMessage,
-    pub flow:    ThinkerFlowControl
+    pub flow: ThinkerFlowControl,
 }
 
 impl ThinkerDecision {
     pub fn new(message: ChatMessage) -> Self {
-        ThinkerDecision{
+        ThinkerDecision {
             message,
-            flow: ThinkerFlowControl::AgentPause
+            flow: ThinkerFlowControl::AgentPause,
         }
     }
 
     pub fn agent_continue(message: ChatMessage) -> Self {
-        ThinkerDecision{
+        ThinkerDecision {
             message,
-            flow: ThinkerFlowControl::AgentContinue
+            flow: ThinkerFlowControl::AgentContinue,
         }
     }
 
     pub fn agent_pause(message: ChatMessage) -> Self {
-        ThinkerDecision{
+        ThinkerDecision {
             message,
-            flow: ThinkerFlowControl::AgentPause
+            flow: ThinkerFlowControl::AgentPause,
         }
     }
 
@@ -64,5 +63,3 @@ pub trait Brain: Send + Sync {
     /// note that if the message contains toolcall, it will always continue
     async fn next_step(&mut self, context: ThinkerContext) -> Result<ThinkerDecision, AgentError>;
 }
-
-

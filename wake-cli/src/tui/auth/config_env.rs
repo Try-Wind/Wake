@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::io;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -9,11 +7,13 @@ use ratatui::{
     widgets::{Block, Borders, Padding, Paragraph},
     Frame,
 };
-use wake_core::config::config::WakeConfig;
-use wake_llm::provider::ProviderInfo;
-use wake_llm::client::LlmClient;
-use tui_textarea::TextArea;
+use std::collections::HashMap;
+use std::io;
 use tokio::task::JoinHandle;
+use tui_textarea::TextArea;
+use wake_core::config::config::WakeConfig;
+use wake_llm::client::LlmClient;
+use wake_llm::provider::ProviderInfo;
 
 use super::auth::NavAction;
 
@@ -40,10 +40,12 @@ pub struct ModalEnvs {
 
 impl ModalEnvs {
     pub fn new(config: WakeConfig, providers: Vec<ProviderInfo>, provider: ProviderInfo) -> Self {
-        let input_fields = provider.env_vars.iter()
+        let input_fields = provider
+            .env_vars
+            .iter()
             .map(|_| TextArea::default())
             .collect();
-            
+
         Self {
             config,
             providers,
@@ -57,7 +59,6 @@ impl ModalEnvs {
         }
     }
 
-
     pub fn env_values(&self) -> &HashMap<String, String> {
         &self.env_values
     }
@@ -66,14 +67,21 @@ impl ModalEnvs {
         &self.provider
     }
 
-    pub fn extract_state(self) -> (WakeConfig, Vec<ProviderInfo>, ProviderInfo, HashMap<String, String>) {
+    pub fn extract_state(
+        self,
+    ) -> (
+        WakeConfig,
+        Vec<ProviderInfo>,
+        ProviderInfo,
+        HashMap<String, String>,
+    ) {
         (self.config, self.providers, self.provider, self.env_values)
     }
 
     fn start_fetch_models(&mut self) {
         // Clear previous env values and update them
         self.env_values.clear();
-        
+
         // Set environment variables based on provider's required env vars
         for (i, env_var) in self.provider.env_vars.iter().enumerate() {
             if i < self.input_fields.len() {
@@ -83,38 +91,29 @@ impl ModalEnvs {
                 }
             }
         }
-        
+
         // Cancel any existing fetch task
         if let Some(handle) = self.fetch_task.take() {
             handle.abort();
         }
-        
+
         // Start async fetch
         self.fetch_state = FetchState::Fetching;
         self.error_message = None;
-        
+
         let provider_name = self.provider.name.to_string();
         let env_values = self.env_values.clone();
-        
+
         self.fetch_task = Some(tokio::spawn(async move {
             match LlmClient::create_provider(&provider_name, &env_values) {
-                Ok(client) => {
-                    match client.models().await {
-                        Ok(models) => {
-                            Ok(models.data.into_iter().map(|m| m.id).collect())
-                        },
-                        Err(e) => {
-                            Err(format!("Failed to fetch models: {}", e))
-                        }
-                    }
+                Ok(client) => match client.models().await {
+                    Ok(models) => Ok(models.data.into_iter().map(|m| m.id).collect()),
+                    Err(e) => Err(format!("Failed to fetch models: {}", e)),
                 },
-                Err(e) => {
-                    Err(format!("Failed to create client: {}", e))
-                }
+                Err(e) => Err(format!("Failed to create client: {}", e)),
             }
         }));
     }
-
 
     pub fn is_fetching(&self) -> bool {
         matches!(self.fetch_state, FetchState::Fetching)
@@ -123,8 +122,9 @@ impl ModalEnvs {
     pub fn poll_fetch(&mut self) -> Option<Result<Vec<String>, String>> {
         if self.fetch_task.as_ref()?.is_finished() {
             let task = self.fetch_task.take()?;
-            let result = futures::executor::block_on(task).unwrap_or_else(|_| Err("Cancelled".to_string()));
-            
+            let result =
+                futures::executor::block_on(task).unwrap_or_else(|_| Err("Cancelled".to_string()));
+
             // Update internal state based on result
             match &result {
                 Ok(models) => self.fetch_state = FetchState::Success(models.clone()),
@@ -133,7 +133,7 @@ impl ModalEnvs {
                     self.error_message = Some(format!("Error: {}", e));
                 }
             }
-            
+
             Some(result)
         } else {
             None
@@ -186,19 +186,24 @@ impl ModalEnvs {
 
     pub fn height(&self) -> usize {
         let num_fields = self.provider.env_vars.len();
-        let base_height = 3 + (num_fields * 4) + 2; 
+        let base_height = 3 + (num_fields * 4) + 2;
         if self.error_message.is_some() {
             base_height + 2
         } else {
             base_height
         }
     }
-    
+
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .padding(Padding { left: 1, right: 1, top: 1, bottom: 1 })
+            .padding(Padding {
+                left: 1,
+                right: 1,
+                top: 1,
+                bottom: 1,
+            })
             .title(format!(" Configure {} ", self.provider.name))
             .style(Style::default().fg(Color::DarkGray));
 
@@ -207,7 +212,7 @@ impl ModalEnvs {
 
         let env_vars = &self.provider.env_vars;
         let num_fields = env_vars.len();
-        
+
         // Calculate constraints for dynamic number of fields
         let mut constraints = vec![];
         for _ in 0..num_fields {
@@ -218,31 +223,39 @@ impl ModalEnvs {
             constraints.push(Constraint::Length(2)); // Error area
         }
         constraints.push(Constraint::Length(1)); // Help area
-        
+
         let layout_areas = Layout::vertical(constraints).split(inner);
-        
+
         // Draw all input fields
         for (i, env_var) in env_vars.iter().enumerate() {
             if i < self.input_fields.len() && i < layout_areas.len() {
-                let is_secret = env_var.name.to_lowercase().contains("key") || 
-                               env_var.name.to_lowercase().contains("secret") ||
-                               env_var.name.to_lowercase().contains("token");
+                let is_secret = env_var.name.to_lowercase().contains("key")
+                    || env_var.name.to_lowercase().contains("secret")
+                    || env_var.name.to_lowercase().contains("token");
 
                 let block = Block::default()
                     .borders(Borders::ALL)
                     .border_set(border::ROUNDED)
-                    .padding(Padding { left: 1, right: 1, top: 0, bottom: 0 })
+                    .padding(Padding {
+                        left: 1,
+                        right: 1,
+                        top: 0,
+                        bottom: 0,
+                    })
                     .title(format!(" {} ", env_var.name))
-                    .style(if self.current_field == i { 
-                        Style::default().fg(Color::White) 
-                    } else { 
-                        Style::default().fg(Color::DarkGray) 
+                    .style(if self.current_field == i {
+                        Style::default().fg(Color::White)
+                    } else {
+                        Style::default().fg(Color::DarkGray)
                     });
 
                 match env_var.name.as_str() {
-                        "OVH_BASE_URL" => self.input_fields[i].set_placeholder_text("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1"),
-                        "OLLAMA_BASE_URL" => self.input_fields[i].set_placeholder_text("http://localhost:11434/v1"),
-                        _ => {}
+                    "OVH_BASE_URL" => self.input_fields[i]
+                        .set_placeholder_text("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1"),
+                    "OLLAMA_BASE_URL" => {
+                        self.input_fields[i].set_placeholder_text("http://localhost:11434/v1")
+                    }
+                    _ => {}
                 }
 
                 if is_secret {
@@ -253,23 +266,26 @@ impl ModalEnvs {
                 self.input_fields[i].set_placeholder_style(Style::default().fg(Color::DarkGray));
                 self.input_fields[i].set_style(Style::default().fg(Color::White));
                 self.input_fields[i].set_cursor_line_style(Style::default());
-                frame.render_widget(&self.input_fields[i], layout_areas[2*i]);
+                frame.render_widget(&self.input_fields[i], layout_areas[2 * i]);
             }
         }
-        
+
         // Draw error if present
         if let Some(error) = &self.error_message {
-            if let Some(error_area) = layout_areas.get(2*num_fields) {
+            if let Some(error_area) = layout_areas.get(2 * num_fields) {
                 frame.render_widget(
-                    Paragraph::new(error.clone())
-                        .style(Style::default().fg(Color::Red)),
-                    *error_area
+                    Paragraph::new(error.clone()).style(Style::default().fg(Color::Red)),
+                    *error_area,
                 );
             }
         }
-        
+
         // Draw help text
-        let help_area_index = if self.error_message.is_some() { 2*num_fields + 1 } else { 2*num_fields };
+        let help_area_index = if self.error_message.is_some() {
+            2 * num_fields + 1
+        } else {
+            2 * num_fields
+        };
         if let Some(help_area) = layout_areas.get(help_area_index) {
             let help_text = match &self.fetch_state {
                 FetchState::Fetching => "Fetching models... • Esc cancel",
@@ -285,11 +301,7 @@ impl ModalEnvs {
                 FetchState::Fetching => Style::default().fg(Color::Yellow),
                 _ => Style::default().fg(Color::DarkGray),
             };
-            frame.render_widget(
-                Paragraph::new(help_text).style(help_style),
-                *help_area
-            );
+            frame.render_widget(Paragraph::new(help_text).style(help_style), *help_area);
         }
     }
-
 }

@@ -1,11 +1,10 @@
 use super::structs::WriteToolParams;
 use super::write::WriteTool;
-use crate::tools::{Tool, ToolCapability, FsOperationLog};
-use wake_llm::ToolDescription;
+use crate::tools::{FsOperationLog, Tool, ToolCapability};
 use std::fs;
 use std::sync::Arc;
 use tempfile::tempdir;
-
+use wake_llm::ToolDescription;
 
 #[test]
 fn test_write_tool_permissions() {
@@ -28,7 +27,7 @@ async fn test_write_tool_creation() {
 async fn test_write_new_file() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("new_file.txt");
-    
+
     let log = Arc::new(FsOperationLog::new());
     let tool = WriteTool::new(log);
     let params = WriteToolParams {
@@ -43,7 +42,7 @@ async fn test_write_new_file() {
     } else {
         panic!("Expected success result");
     }
-    
+
     let content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(content, "Hello, World!");
 }

@@ -1,8 +1,8 @@
-pub mod structs;
 pub mod multiedit;
+pub mod structs;
 
 #[cfg(test)]
 mod tests;
 
-pub use structs::{MultiEditToolParams, EditOperation};
 pub use multiedit::MultiEditTool;
+pub use structs::{EditOperation, MultiEditToolParams};

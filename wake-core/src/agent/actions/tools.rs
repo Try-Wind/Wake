@@ -1,19 +1,21 @@
 use std::sync::Arc;
 
+use crate::agent::{
+    AgentCore, AgentEvent, ClaimManager, InternalAgentEvent, InternalAgentState, PermissionRequest,
+    PermissionResponse,
+};
+use crate::tools::{AnyTool, ToolCall, ToolCapability, ToolResult};
 use chrono::{TimeDelta, Utc};
-use wake_llm::{ChatMessage, ToolCall as LlmToolCall};
+use serde_json::from_str;
 use tokio::sync::{broadcast, RwLock};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
-use serde_json::from_str;
-use uuid::Uuid;
-use crate::agent::{AgentCore, AgentEvent, ClaimManager, InternalAgentEvent, InternalAgentState, PermissionRequest, PermissionResponse};
-use crate::tools::{AnyTool, ToolCall, ToolCapability, ToolResult};
 use tracing::debug;
+use tracing::info;
+use uuid::Uuid;
+use wake_llm::{ChatMessage, ToolCall as LlmToolCall};
 
 impl AgentCore {
-
     /// Spawn a cancellable coroutine that runs all tool call in parrallel and waits for them to finish
     pub async fn spawn_tools(&mut self, tool_calls: Vec<LlmToolCall>) {
         let cancellation_token = CancellationToken::new();
@@ -28,7 +30,7 @@ impl AgentCore {
 
         // Spawn a task to wait for all tool executions
         let mut join_handles = Vec::new();
-        
+
         // Spawn all tool executions
         for tc in tool_calls {
             let handle = Self::spawn_tool_static(
@@ -42,7 +44,7 @@ impl AgentCore {
             );
             join_handles.push(handle);
         }
-            
+
         // Wait for all tools to complete or be cancelled
         tokio::spawn(async move {
             tokio::select! {
@@ -60,13 +62,14 @@ impl AgentCore {
                 }
             }
         });
-        
+
         // Set state to Processing with cancellation token
-        self.set_state(InternalAgentState::Processing { 
-            task_name: "tools".to_string(), 
-            tools_exec_at: Utc::now(), 
-            cancellation_token
-        }).await;
+        self.set_state(InternalAgentState::Processing {
+            task_name: "tools".to_string(),
+            tools_exec_at: Utc::now(),
+            cancellation_token,
+        })
+        .await;
     }
 
     /// Spawn a cancellable coroutine that runs a single tool call
@@ -86,14 +89,14 @@ impl AgentCore {
                 // tool does not exist, we fail immediately
                 Err(tool_result) => {
                     if let Some(tx) = public_event_tx.clone() {
-                        let _ = tx.send(AgentEvent::ToolCallCompleted { 
-                            duration: TimeDelta::zero(), 
+                        let _ = tx.send(AgentEvent::ToolCallCompleted {
+                            duration: TimeDelta::zero(),
                             call: ToolCall {
                                 tool_call_id: tc_for_error.id.clone(),
                                 tool_name: tc_for_error.function.name.clone(),
-                                parameters: serde_json::Value::Null
-                            }, 
-                            result: tool_result 
+                                parameters: serde_json::Value::Null,
+                            },
+                            result: tool_result,
                         });
                     }
                 }
@@ -106,19 +109,21 @@ impl AgentCore {
 
                     // Emit tool call started event
                     if let Some(tx) = public_event_tx.clone() {
-                        let _ = tx.send(AgentEvent::ToolCallStarted { 
-                            timestamp: start.clone(), 
-                            call: call.clone(), 
+                        let _ = tx.send(AgentEvent::ToolCallStarted {
+                            timestamp: start.clone(),
+                            call: call.clone(),
                         });
                     }
-                    
+
                     // execute tool
                     let tool_handle = Self::spawn_tool_exec(
-                        tool, call.clone(), 
-                        cancel_token.clone(), 
-                        claims, 
-                        public_event_tx.clone(), 
-                        internal_tx.subscribe());
+                        tool,
+                        call.clone(),
+                        cancel_token.clone(),
+                        claims,
+                        public_event_tx.clone(),
+                        internal_tx.subscribe(),
+                    );
 
                     // wait for result (or for cancellation)
                     let result: ToolResult = tokio::select! {
@@ -139,20 +144,20 @@ impl AgentCore {
 
                     // let's first add tool result to trace
                     let _ = {
-                        trace.write().await.push(ChatMessage::Tool { 
+                        trace.write().await.push(ChatMessage::Tool {
                             tool_call_id: call.tool_call_id.clone(),
-                            content: result.to_string()
+                            content: result.to_string(),
                         });
                     };
 
                     // Emit tool call finish event
                     info!(target: "agent::tool_completed", call = ?tc_for_error.function.name.clone(), result = ?result);
                     if let Some(tx) = public_event_tx.clone() {
-                        let _ = tx.send(AgentEvent::ToolCallCompleted { 
-                            duration: Utc::now() - start, 
-                            call: call, 
-                            result 
-                        });   
+                        let _ = tx.send(AgentEvent::ToolCallCompleted {
+                            duration: Utc::now() - start,
+                            call: call,
+                            result,
+                        });
                     }
                 }
             }
@@ -162,23 +167,36 @@ impl AgentCore {
     /// execute a single tool call
     /// checking for permission, requesting it, executing the tool
     fn spawn_tool_exec(
-        tool: Arc<dyn AnyTool>, 
-        call: ToolCall, 
+        tool: Arc<dyn AnyTool>,
+        call: ToolCall,
         cancel_token: CancellationToken,
-        claims: Arc<RwLock<ClaimManager>>, 
-        public_event_tx: Option<broadcast::Sender<AgentEvent>>, 
-        mut internal_rx: broadcast::Receiver<InternalAgentEvent>) -> JoinHandle<ToolResult> {
+        claims: Arc<RwLock<ClaimManager>>,
+        public_event_tx: Option<broadcast::Sender<AgentEvent>>,
+        mut internal_rx: broadcast::Receiver<InternalAgentEvent>,
+    ) -> JoinHandle<ToolResult> {
         tokio::spawn(async move {
             // check permission, we allow all Read Tool
-            let can_run = tool.capabilities().is_empty()  
-            || tool.capabilities() == &[ToolCapability::Read]
-            || claims.read().await.is_permitted(tool.name(), &call.parameters);
+            let can_run = tool.capabilities().is_empty()
+                || tool.capabilities() == &[ToolCapability::Read]
+                || claims
+                    .read()
+                    .await
+                    .is_permitted(tool.name(), &call.parameters);
 
             // request permission if needed (|| is short-circuiting, so won't call if can_run is true)
-            let can_run = can_run || match Self::request_permission_if_needed(&call, &tool, &public_event_tx, &mut internal_rx, &cancel_token).await {
-                Ok(permission_granted) => permission_granted,
-                Err(preview_error) => return preview_error, // Return preview error immediately
-            };
+            let can_run = can_run
+                || match Self::request_permission_if_needed(
+                    &call,
+                    &tool,
+                    &public_event_tx,
+                    &mut internal_rx,
+                    &cancel_token,
+                )
+                .await
+                {
+                    Ok(permission_granted) => permission_granted,
+                    Err(preview_error) => return preview_error, // Return preview error immediately
+                };
 
             if can_run {
                 // Execute tool with cancellation support
@@ -189,7 +207,9 @@ impl AgentCore {
                     }
                 }
             } else {
-                ToolResult::error("permission to execute this tool was denied by the user".to_string())
+                ToolResult::error(
+                    "permission to execute this tool was denied by the user".to_string(),
+                )
             }
         })
     }
@@ -205,19 +225,19 @@ impl AgentCore {
     ) -> Result<bool, ToolResult> {
         // Session is not interactive so we cannot ask for permission
         let Some(tx) = public_event_tx.as_ref() else {
-            return Ok(false); 
+            return Ok(false);
         };
-        
+
         // Try to get preview from tool
         let preview = tool.execute_preview_json(call.parameters.clone()).await;
-        
+
         // If preview returned an error, return that error immediately
         if let Some(error_result) = &preview {
             if let ToolResult::Error { .. } = error_result {
                 return Err(error_result.clone());
             }
         }
-        
+
         // Send permission request
         let req_id = Uuid::new_v4().to_string();
         let _ = tx.send(AgentEvent::PermissionRequired {
@@ -227,7 +247,7 @@ impl AgentCore {
                 operation: "do you want to run this tool?".to_string(),
                 call: call.clone(),
                 preview,
-            }
+            },
         });
 
         // Wait for permission response
@@ -235,7 +255,7 @@ impl AgentCore {
             tokio::select! {
                 recv_result = internal_rx.recv() => {
                     match recv_result {
-                        Ok(InternalAgentEvent::PermissionResponseReceived { request_id, response }) 
+                        Ok(InternalAgentEvent::PermissionResponseReceived { request_id, response })
                             if request_id == req_id => {
                             return Ok(matches!(response, PermissionResponse::Allow | PermissionResponse::AllowAlways));
                         }
@@ -252,28 +272,27 @@ impl AgentCore {
 
     // utility method
     fn tool_exist(
-        tools: Vec<Arc<dyn AnyTool>>, 
-        tc: LlmToolCall
-    ) -> Result<(Arc<dyn AnyTool>, ToolCall), ToolResult>{
+        tools: Vec<Arc<dyn AnyTool>>,
+        tc: LlmToolCall,
+    ) -> Result<(Arc<dyn AnyTool>, ToolCall), ToolResult> {
         from_str(&tc.function.arguments)
-        .map_err(|_e| 
-            ToolResult::error("failed to parse tool parameters".to_string())
-        )
-        .and_then(|params| {
-            let tool_call = ToolCall {
-                tool_call_id: tc.id.clone(),
-                tool_name: tc.function.name.clone(),
-                parameters: params
-            };
-            
-            // Find the tool
-            tools.iter()
-                .find(|t| t.name() == tool_call.tool_name)
-                .cloned()
-                .ok_or_else(||
-                    ToolResult::error(format!("tool not found: {}", tool_call.tool_name))
-                )
-                .map(|tool| (tool, tool_call))
-        })
+            .map_err(|_e| ToolResult::error("failed to parse tool parameters".to_string()))
+            .and_then(|params| {
+                let tool_call = ToolCall {
+                    tool_call_id: tc.id.clone(),
+                    tool_name: tc.function.name.clone(),
+                    parameters: params,
+                };
+
+                // Find the tool
+                tools
+                    .iter()
+                    .find(|t| t.name() == tool_call.tool_name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        ToolResult::error(format!("tool not found: {}", tool_call.tool_name))
+                    })
+                    .map(|tool| (tool, tool_call))
+            })
     }
 }
