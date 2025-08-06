@@ -1,6 +1,3 @@
 [workspace]
 resolver = "2"
 members = [".", "wake-macros", "wake-llm", "wake-core", "wake-cli"]
-
-[patch.crates-io]
-ratatui = { git = "https://github.com/Marlinski/ratatui", branch = "feature/viewport-resize-v29" }
