@@ -1,222 +1,189 @@
-#!/usr/bin/env sh
+#!/bin/bash
+
+# Wake Installation Script
+# Hardware-First Coding Agent by Wind
 
 set -e
 
-# Configuration
-REPO="ovh/shai"
-BINARY_NAME="shai"
-INSTALL_DIR="$HOME/.local/bin"
+REPO_URL="https://github.com/Try-Wind/Wake"
+INSTALL_DIR="$HOME/.wake"
+BIN_DIR="$HOME/.local/bin"
+VERSION="latest"
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Helper functions
-log_info() {
-    echo "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warn() {
-    echo "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+echo -e "${GREEN}"
+echo "╔══════════════════════════════════════════╗"
+echo "║     Wake - Hardware-First Coding Agent   ║"
+echo "║              by Wind                     ║"
+echo "╚══════════════════════════════════════════╝"
+echo -e "${NC}"
 
 # Detect OS and architecture
-detect_platform() {
-    local os arch platform
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
 
-    # Detect OS
-    case "$(uname -s)" in
-        Linux*)     os="linux" ;;
-        Darwin*)    os="macos" ;;
-        CYGWIN*|MINGW*|MSYS*) os="windows" ;;
-        *)          
-            log_error "Unsupported OS: $(uname -s)"
-            exit 1
-            ;;
-    esac
+case "$OS" in
+    linux*)
+        PLATFORM="linux"
+        ;;
+    darwin*)
+        PLATFORM="macos"
+        ;;
+    *)
+        echo -e "${RED}Unsupported operating system: $OS${NC}"
+        exit 1
+        ;;
+esac
 
-    # Detect architecture
-    case "$(uname -m)" in
-        x86_64|amd64)   arch="x86_64" ;;
-        arm64|aarch64)  arch="aarch64" ;;
-        *)              
-            log_error "Unsupported architecture: $(uname -m)"
-            exit 1
-            ;;
-    esac
+case "$ARCH" in
+    x86_64)
+        ARCH_SUFFIX="x64"
+        ;;
+    aarch64|arm64)
+        ARCH_SUFFIX="arm64"
+        ;;
+    *)
+        echo -e "${RED}Unsupported architecture: $ARCH${NC}"
+        exit 1
+        ;;
+esac
 
-    # Special handling for macOS (only x86_64 and aarch64 available)
-    if [ "$os" = "macos" ]; then
-        if [ "$arch" = "x86_64" ]; then
-            platform="${BINARY_NAME}-macos-x86_64"
-        elif [ "$arch" = "aarch64" ]; then
-            platform="${BINARY_NAME}-macos-aarch64"
-        fi
-    elif [ "$os" = "linux" ]; then
-        platform="${BINARY_NAME}-linux-x86_64"
-    elif [ "$os" = "windows" ]; then
-        platform="${BINARY_NAME}-windows-x86_64.exe"
-        BINARY_NAME="${BINARY_NAME}.exe"
-    fi
+BINARY_NAME="wake-${PLATFORM}-${ARCH_SUFFIX}"
 
-    echo "$platform"
-}
+echo -e "${YELLOW}Installing Wake for ${PLATFORM} (${ARCH})...${NC}"
 
-# Get latest release info from GitHub API
-get_latest_release() {
-    local api_url="https://api.github.com/repos/$REPO/releases/latest"
-    
-    log_info "Fetching latest release information..."
-    
-    # Try with curl first, then wget
-    if command -v curl >/dev/null 2>&1; then
-        curl -s "$api_url"
-    elif command -v wget >/dev/null 2>&1; then
-        wget -qO- "$api_url"
-    else
-        log_error "Neither curl nor wget is available. Please install one of them."
+# Check for required tools
+check_command() {
+    if ! command -v "$1" &> /dev/null; then
+        echo -e "${RED}Error: $1 is not installed.${NC}"
+        echo "Please install $1 and try again."
         exit 1
     fi
 }
 
-# Download binary
-download_binary() {
-    local download_url="$1"
-    local output_file="$2"
-    
-    log_info "Downloading $BINARY_NAME from $download_url"
-    
-    if command -v curl >/dev/null 2>&1; then
-        curl -L -o "$output_file" "$download_url"
-    elif command -v wget >/dev/null 2>&1; then
-        wget -O "$output_file" "$download_url"
-    else
-        log_error "Neither curl nor wget is available"
-        exit 1
-    fi
-}
+check_command curl
+check_command git
 
-# Create install directory
-create_install_dir() {
-    if [ ! -d "$INSTALL_DIR" ]; then
-        log_info "Creating install directory: $INSTALL_DIR"
-        mkdir -p "$INSTALL_DIR"
-    fi
-}
+# Method 1: Try downloading pre-built binary
+echo -e "${YELLOW}Checking for pre-built binaries...${NC}"
 
-# Add to PATH if not already there
-update_path() {
-    local shell_profile=""
-    
-    # Detect shell profile
-    if [ -n "$ZSH_VERSION" ]; then
-        shell_profile="$HOME/.zshrc"
-    elif [ -n "$BASH_VERSION" ]; then
-        if [ -f "$HOME/.bash_profile" ]; then
-            shell_profile="$HOME/.bash_profile"
-        else
-            shell_profile="$HOME/.bashrc"
-        fi
-    fi
-    
-    # Check if directory is already in PATH
-    if [ "${PATH#*:$INSTALL_DIR:}" = "$PATH" ] && [ "${PATH#$INSTALL_DIR:}" = "$PATH" ] && [ "${PATH%:$INSTALL_DIR}" = "$PATH" ] && [ "$PATH" != "$INSTALL_DIR" ]; then
-        if [ -n "$shell_profile" ] && [ -f "$shell_profile" ]; then
-            echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$shell_profile"
-            log_success "Added $INSTALL_DIR to PATH in $shell_profile"
-            log_warn "Please run 'source $shell_profile' or restart your terminal"
-        else
-            log_warn "Could not automatically add to PATH. Please add $INSTALL_DIR to your PATH manually"
-        fi
-    fi
-}
+RELEASE_URL="https://api.github.com/repos/Try-Wind/Wake/releases/latest"
+DOWNLOAD_URL=$(curl -s "$RELEASE_URL" | grep "browser_download_url.*${BINARY_NAME}" | cut -d '"' -f 4)
 
-# Main installation function
-main() {
-    log_info "Installing $BINARY_NAME..."
+if [ -n "$DOWNLOAD_URL" ]; then
+    echo -e "${GREEN}Found pre-built binary, downloading...${NC}"
     
-    # Detect platform
-    local platform
-    platform=$(detect_platform)
-    log_info "Detected platform: $platform"
-    
-    # Get latest release
-    local release_json
-    release_json=$(get_latest_release)
-    
-    if [ -z "$release_json" ]; then
-        log_error "Failed to fetch release information"
-        exit 1
-    fi
-    
-    # Extract download URL
-    local download_url
-    download_url=$(echo "$release_json" | grep -o "\"browser_download_url\":[[:space:]]*\"[^\"]*$platform[^\"]*\"" | cut -d'"' -f4)
-    
-    if [ -z "$download_url" ]; then
-        log_error "Could not find download URL for platform: $platform"
-        log_error "Available assets:"
-        echo "$release_json" | grep -o "\"name\":[[:space:]]*\"[^\"]*\"" | cut -d'"' -f4
-        exit 1
-    fi
-    
-    # Create install directory
-    create_install_dir
+    # Create directories
+    mkdir -p "$BIN_DIR"
     
     # Download binary
-    local temp_file="/tmp/$platform"
-    download_binary "$download_url" "$temp_file"
+    curl -L "$DOWNLOAD_URL" -o "$BIN_DIR/wake"
+    chmod +x "$BIN_DIR/wake"
     
-    # Install binary
-    local install_path="$INSTALL_DIR/$BINARY_NAME"
-    mv "$temp_file" "$install_path"
-    chmod +x "$install_path"
+    echo -e "${GREEN}Wake installed successfully!${NC}"
+else
+    echo -e "${YELLOW}No pre-built binary found. Building from source...${NC}"
     
-    log_success "$BINARY_NAME installed to $install_path"
-    
-    # Update PATH
-    update_path
-    
-    # Verify installation
-    if command -v "$BINARY_NAME" >/dev/null 2>&1; then
-        log_success "Installation completed! You can now run '$BINARY_NAME'"
-    else
-        log_success "Installation completed! You can run '$install_path' or add $INSTALL_DIR to your PATH"
+    # Method 2: Build from source
+    # Check for Rust
+    if ! command -v cargo &> /dev/null; then
+        echo -e "${YELLOW}Rust is not installed. Installing Rust...${NC}"
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
     fi
+    
+    # Clone or update repository
+    if [ -d "$INSTALL_DIR" ]; then
+        echo -e "${YELLOW}Updating existing Wake installation...${NC}"
+        cd "$INSTALL_DIR"
+        git pull
+    else
+        echo -e "${YELLOW}Cloning Wake repository...${NC}"
+        git clone "$REPO_URL" "$INSTALL_DIR"
+        cd "$INSTALL_DIR"
+    fi
+    
+    # Build Wake
+    echo -e "${YELLOW}Building Wake... This may take a few minutes.${NC}"
+    cargo build --release
+    
+    # Create directories
+    mkdir -p "$BIN_DIR"
+    
+    # Copy binary
+    cp "target/release/wake" "$BIN_DIR/wake"
+    chmod +x "$BIN_DIR/wake"
+    
+    echo -e "${GREEN}Wake built and installed successfully!${NC}"
+fi
+
+# Create configuration directory
+mkdir -p "$HOME/.config/wake"
+
+# Create default configuration if it doesn't exist
+if [ ! -f "$HOME/.config/wake/config.json" ]; then
+    cat > "$HOME/.config/wake/config.json" << 'EOF'
+{
+  "providers": [
+    {
+      "provider": "openai",
+      "env_vars": {
+        "OPENAI_API_KEY": "your-api-key-here"
+      },
+      "model": "gpt-4",
+      "tool_method": "FunctionCall"
+    }
+  ],
+  "selected_provider": 0,
+  "hardware_focus": {
+    "default_platform": "esp32",
+    "preferred_language": "c",
+    "enable_hardware_tools": true
+  }
 }
+EOF
+    echo -e "${YELLOW}Created default configuration at ~/.config/wake/config.json${NC}"
+    echo -e "${YELLOW}Please edit this file to add your API keys.${NC}"
+fi
 
-# Parse command line arguments
-while [ $# -gt 0 ]; do
-    case $1 in
-        --install-dir)
-            INSTALL_DIR="$2"
-            shift 2
-            ;;
-        --help)
-            echo "Usage: $0 [--install-dir DIR] [--help]"
-            echo ""
-            echo "Options:"
-            echo "  --install-dir DIR    Install to DIR (default: $HOME/.local/bin)"
-            echo "  --help              Show this help message"
-            exit 0
-            ;;
-        *)
-            log_error "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
+# Add to PATH if not already there
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    echo -e "${YELLOW}Adding Wake to PATH...${NC}"
+    
+    # Detect shell
+    if [ -n "$ZSH_VERSION" ]; then
+        SHELL_RC="$HOME/.zshrc"
+    elif [ -n "$BASH_VERSION" ]; then
+        SHELL_RC="$HOME/.bashrc"
+    else
+        SHELL_RC="$HOME/.profile"
+    fi
+    
+    echo "" >> "$SHELL_RC"
+    echo "# Wake - Hardware-First Coding Agent" >> "$SHELL_RC"
+    echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$SHELL_RC"
+    
+    echo -e "${GREEN}Added Wake to PATH in $SHELL_RC${NC}"
+    echo -e "${YELLOW}Please run: source $SHELL_RC${NC}"
+    echo -e "${YELLOW}Or restart your terminal.${NC}"
+fi
 
-# Run main function
-main
+echo ""
+echo -e "${GREEN}╔══════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║     Installation Complete! 🎉            ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${GREEN}Next steps:${NC}"
+echo "1. Configure your AI provider: wake auth"
+echo "2. Start using Wake: wake"
+echo "3. Get help: wake --help"
+echo ""
+echo -e "${YELLOW}For hardware examples and documentation:${NC}"
+echo "https://github.com/Try-Wind/Wake"
+echo ""
+echo -e "${GREEN}Happy hardware hacking! 🔧${NC}"

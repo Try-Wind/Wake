@@ -1,13 +1,18 @@
-# This is the official list of the project maintainers.
-# This is mostly useful for contributors that want to push
-# significant pull requests or for project management issues.
-#
-#
-# Names should be added to this file like so:
-# Individual's name <submission email address>
-# Individual's name <submission email address>
-#
-# Please keep the list sorted.
-#
+# Maintainers of Wake
 
-Lucien Loiseau <lucien.loiseau@ovhcloud.com>
+This file lists the maintainers of the Wake project.
+
+## Lead Maintainer
+
+- Adhyaay Karnwal (@adhyaay-karnwal) - Founder of Wind
+
+## Core Maintainers
+
+The Wake project is maintained by Wind, a startup focused on building
+hardware-aware development tools.
+
+## Contact
+
+For questions about Wake maintenance:
+- GitHub: https://github.com/Try-Wind/Wake
+- Issues: https://github.com/Try-Wind/Wake/issues

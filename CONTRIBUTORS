@@ -1,15 +1,17 @@
-# This is the official list of people who can contribute
-# (and typically have contributed) code to the <PROJECT> repository.
-#
-# Names should be added to this file only after verifying that
-# the individual or the individual's organization has agreed to
-# the appropriate CONTRIBUTING.md file.
-#
-# Names should be added to this file like so:
-# Individual's name <submission email address>
-# Individual's name <submission email address>
-#
-# Please keep the list sorted.
-#
+# Contributors to Wake
 
-Lucien Loiseau <lucien.loiseau@ovhcloud.com>
+This file lists the contributors to the Wake project.
+
+## Core Team
+
+- Adhyaay Karnwal - Founder of Wind, Project Lead
+
+## Contributors
+
+We welcome contributions from the community! If you'd like to contribute to Wake, 
+please check out our CONTRIBUTING.md file.
+
+## Acknowledgments
+
+Wake is a hardware-first coding agent built by Wind, focused on embedded systems,
+circuit design, and hardware development.
