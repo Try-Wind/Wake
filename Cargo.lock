@@ -2404,100 +2404,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shai"
-version = "0.1.3-dev"
-dependencies = [
- "ansi-to-tui",
- "async-trait",
- "chrono",
- "clap",
- "cli-clipboard",
- "console",
- "crossterm 0.28.1",
- "figrs",
- "futures 0.3.31",
- "libc",
- "rand",
- "ratatui",
- "ringbuffer",
- "rmp-serde",
- "serde",
- "serde_json",
- "shai-core",
- "shai-llm",
- "tempfile",
- "textwrap",
- "tokio",
- "tui-textarea",
-]
-
-[[package]]
-name = "shai-core"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "dirs",
- "fs",
- "futures 0.3.31",
- "openai_dive",
- "paste",
- "regex",
- "reqwest",
- "schemars",
- "serde",
- "serde_json",
- "shai-llm",
- "shai-macros",
- "similar",
- "tempfile",
- "termimad",
- "thiserror 2.0.12",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "tree-sitter",
- "tree-sitter-highlight",
- "uuid",
- "walkdir",
-]
-
-[[package]]
-name = "shai-llm"
-version = "0.1.0"
-dependencies = [
- "async-stream",
- "async-trait",
- "chrono",
- "fastrand",
- "futures 0.3.31",
- "native-tls",
- "openai_dive",
- "openssl",
- "paste",
- "regex",
- "reqwest",
- "reqwest-eventsource",
- "schemars",
- "serde",
- "serde_json",
- "shai-macros",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "shai-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.103",
-]
-
-[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3218,6 +3124,100 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "wake"
+version = "0.1.3-dev"
+dependencies = [
+ "ansi-to-tui",
+ "async-trait",
+ "chrono",
+ "clap",
+ "cli-clipboard",
+ "console",
+ "crossterm 0.28.1",
+ "figrs",
+ "futures 0.3.31",
+ "libc",
+ "rand",
+ "ratatui",
+ "ringbuffer",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "textwrap",
+ "tokio",
+ "tui-textarea",
+ "wake-core",
+ "wake-llm",
+]
+
+[[package]]
+name = "wake-core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "dirs",
+ "fs",
+ "futures 0.3.31",
+ "openai_dive",
+ "paste",
+ "regex",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "similar",
+ "tempfile",
+ "termimad",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "tree-sitter",
+ "tree-sitter-highlight",
+ "uuid",
+ "wake-llm",
+ "wake-macros",
+ "walkdir",
+]
+
+[[package]]
+name = "wake-llm"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "chrono",
+ "fastrand",
+ "futures 0.3.31",
+ "native-tls",
+ "openai_dive",
+ "openssl",
+ "paste",
+ "regex",
+ "reqwest",
+ "reqwest-eventsource",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+ "wake-macros",
+]
+
+[[package]]
+name = "wake-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.103",
+]
 
 [[package]]
 name = "walkdir"

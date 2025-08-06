@@ -1,19 +1,20 @@
+// Hardware-specific tools for Wake
 pub mod datasheet_analyzer;
 pub mod driver_generator;
 pub mod protocol_debugger;
 pub mod circuit_analyzer;
 pub mod pinout_mapper;
-pub mod firmware_flasher;
+pub mod timing_calculator;
 
-use crate::tools::types::AnyTool;
+use wake_llm::tools::{Tool, ToolArguments, ToolCall, ToolResult};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use async_trait::async_trait;
 
-pub fn hardware_tools() -> Vec<AnyTool> {
-    vec![
-        Box::new(datasheet_analyzer::DatasheetAnalyzer),
-        Box::new(driver_generator::DriverGenerator),
-        Box::new(protocol_debugger::ProtocolDebugger),
-        Box::new(circuit_analyzer::CircuitAnalyzer),
-        Box::new(pinout_mapper::PinoutMapper),
-        Box::new(firmware_flasher::FirmwareFlasher),
-    ]
-}
+// Re-export all hardware tools
+pub use datasheet_analyzer::DatasheetAnalyzer;
+pub use driver_generator::DriverGenerator;
+pub use protocol_debugger::ProtocolDebugger;
+pub use circuit_analyzer::CircuitAnalyzer;
+pub use pinout_mapper::PinoutMapper;
+pub use timing_calculator::TimingCalculator;
