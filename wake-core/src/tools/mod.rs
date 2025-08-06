@@ -4,6 +4,7 @@ pub mod todo;
 pub mod fs;
 pub mod fetch;
 pub mod bash;
+pub mod hardware;
 
 #[cfg(test)]
 mod tests_llm;

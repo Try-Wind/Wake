@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wake_llm::tools::{Tool, ToolArguments, ToolResult};
-use wake_macros::tool_derive;
+use crate::tools::{Tool, ToolResult, ToolCapability};
+use wake_llm::ToolDescription;
 
-#[tool_derive]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct DatasheetAnalyzerArgs {
     /// Component or chip name
@@ -30,8 +29,13 @@ impl DatasheetAnalyzer {
 
 #[async_trait]
 impl Tool for DatasheetAnalyzer {
-    async fn run(&self, args: ToolArguments) -> Result<ToolResult, String> {
-        let args: DatasheetAnalyzerArgs = args.try_into()?;
+    type Params = DatasheetAnalyzerArgs;
+    
+    fn capabilities(&self) -> &'static [ToolCapability] {
+        &[ToolCapability::Read]
+    }
+    
+    async fn execute(&self, args: Self::Params) -> ToolResult {
         
         let analysis = format!(
             "## Datasheet Analysis for {}\n\n\
@@ -46,14 +50,21 @@ impl Tool for DatasheetAnalyzer {
             args.component, args.extract_type
         );
         
-        Ok(ToolResult::Success(analysis))
+        ToolResult::success(analysis)
     }
-    
-    fn name(&self) -> &str {
+}
+
+impl ToolDescription for DatasheetAnalyzer {
+    fn name(&self) -> &'static str {
         "datasheet_analyzer"
     }
     
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Extract and analyze information from hardware component datasheets including register maps, pinouts, timing diagrams, and specifications."
+    }
+    
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::to_value(schemars::schema_for!(DatasheetAnalyzerArgs))
+            .unwrap_or_else(|_| serde_json::json!({}))
     }
 }

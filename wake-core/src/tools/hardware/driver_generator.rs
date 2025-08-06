@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wake_llm::tools::{Tool, ToolArguments, ToolCall, ToolResult};
-use wake_macros::tool_derive;
+use crate::tools::{Tool, ToolResult, ToolCapability};
+use wake_llm::ToolDescription;
 
-#[tool_derive]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct DriverGeneratorArgs {
     /// The hardware component or chip name (e.g., "MPU6050", "BMP280", "SSD1306")
@@ -593,8 +592,13 @@ if __name__ == "__main__":
 
 #[async_trait]
 impl Tool for DriverGenerator {
-    async fn run(&self, args: ToolArguments) -> Result<ToolResult, String> {
-        let args: DriverGeneratorArgs = args.try_into()?;
+    type Params = DriverGeneratorArgs;
+    
+    fn capabilities(&self) -> &'static [ToolCapability] {
+        &[ToolCapability::Read]
+    }
+    
+    async fn execute(&self, args: Self::Params) -> ToolResult {
         
         let driver_code = self.generate_driver_template(&args);
         
@@ -612,7 +616,7 @@ impl Tool for DriverGenerator {
             file_extension
         );
         
-        Ok(ToolResult::Success(format!(
+        ToolResult::success(format!(
             "Generated {} driver for {} on {} platform using {} protocol.\n\nDriver code saved as: {}\n\n{}",
             args.language,
             args.component,
@@ -620,14 +624,21 @@ impl Tool for DriverGenerator {
             args.protocol,
             filename,
             driver_code
-        )))
+        ))
     }
-    
-    fn name(&self) -> &str {
+}
+
+impl ToolDescription for DriverGenerator {
+    fn name(&self) -> &'static str {
         "driver_generator"
     }
     
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Generate hardware device drivers from component specifications. Supports multiple platforms (Arduino, STM32, ESP32, Raspberry Pi) and languages (C, C++, Rust, MicroPython)."
+    }
+    
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::to_value(schemars::schema_for!(DriverGeneratorArgs))
+            .unwrap_or_else(|_| serde_json::json!({}))
     }
 }

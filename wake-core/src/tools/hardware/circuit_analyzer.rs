@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wake_llm::tools::{Tool, ToolArguments, ToolResult};
-use wake_macros::tool_derive;
+use crate::tools::{Tool, ToolResult, ToolCapability};
+use wake_llm::ToolDescription;
 
-#[tool_derive]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct CircuitAnalyzerArgs {
     /// Circuit description or schematic
@@ -30,8 +29,13 @@ impl CircuitAnalyzer {
 
 #[async_trait]
 impl Tool for CircuitAnalyzer {
-    async fn run(&self, args: ToolArguments) -> Result<ToolResult, String> {
-        let args: CircuitAnalyzerArgs = args.try_into()?;
+    type Params = CircuitAnalyzerArgs;
+    
+    fn capabilities(&self) -> &'static [ToolCapability] {
+        &[ToolCapability::Read]
+    }
+    
+    async fn execute(&self, args: Self::Params) -> ToolResult {
         
         let analysis = format!(
             "## Circuit Analysis\n\n\
@@ -47,14 +51,21 @@ impl Tool for CircuitAnalyzer {
             args.analysis_type, args.circuit
         );
         
-        Ok(ToolResult::Success(analysis))
+        ToolResult::success(analysis)
     }
-    
-    fn name(&self) -> &str {
+}
+
+impl ToolDescription for CircuitAnalyzer {
+    fn name(&self) -> &'static str {
         "circuit_analyzer"
     }
     
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Analyze electronic circuits for voltage levels, current flow, impedance, filters, and component selection."
+    }
+    
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::to_value(schemars::schema_for!(CircuitAnalyzerArgs))
+            .unwrap_or_else(|_| serde_json::json!({}))
     }
 }

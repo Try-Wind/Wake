@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wake_llm::tools::{Tool, ToolArguments, ToolCall, ToolResult};
-use wake_macros::tool_derive;
+use crate::tools::{Tool, ToolResult, ToolCapability};
+use wake_llm::ToolDescription;
 
-#[tool_derive]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ProtocolDebuggerArgs {
     /// Communication protocol to debug (I2C, SPI, UART, CAN, OneWire)
@@ -241,8 +240,13 @@ impl ProtocolDebugger {
 
 #[async_trait]
 impl Tool for ProtocolDebugger {
-    async fn run(&self, args: ToolArguments) -> Result<ToolResult, String> {
-        let args: ProtocolDebuggerArgs = args.try_into()?;
+    type Params = ProtocolDebuggerArgs;
+    
+    fn capabilities(&self) -> &'static [ToolCapability] {
+        &[ToolCapability::Read]
+    }
+    
+    async fn execute(&self, args: Self::Params) -> ToolResult {
         
         let analysis = match args.protocol.to_uppercase().as_str() {
             "I2C" | "IIC" | "TWI" => self.analyze_i2c_issue(&args),
@@ -279,14 +283,21 @@ impl Tool for ProtocolDebugger {
             }
         }
         
-        Ok(ToolResult::Success(result))
+        ToolResult::success(result)
     }
-    
-    fn name(&self) -> &str {
+}
+
+impl ToolDescription for ProtocolDebugger {
+    fn name(&self) -> &'static str {
         "protocol_debugger"
     }
     
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Debug hardware communication protocol issues. Analyzes I2C, SPI, UART, CAN and other protocol problems, providing specific troubleshooting steps and solutions."
+    }
+    
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::to_value(schemars::schema_for!(ProtocolDebuggerArgs))
+            .unwrap_or_else(|_| serde_json::json!({}))
     }
 }

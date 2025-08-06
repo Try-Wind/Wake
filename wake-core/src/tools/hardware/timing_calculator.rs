@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wake_llm::tools::{Tool, ToolArguments, ToolResult};
-use wake_macros::tool_derive;
+use crate::tools::{Tool, ToolResult, ToolCapability};
+use wake_llm::ToolDescription;
 
-#[tool_derive]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct TimingCalculatorArgs {
     /// Calculation type (baud-rate, i2c-timing, spi-clock, pwm, timer)
@@ -30,8 +29,13 @@ impl TimingCalculator {
 
 #[async_trait]
 impl Tool for TimingCalculator {
-    async fn run(&self, args: ToolArguments) -> Result<ToolResult, String> {
-        let args: TimingCalculatorArgs = args.try_into()?;
+    type Params = TimingCalculatorArgs;
+    
+    fn capabilities(&self) -> &'static [ToolCapability] {
+        &[ToolCapability::Read]
+    }
+    
+    async fn execute(&self, args: Self::Params) -> ToolResult {
         
         let calculation = format!(
             "## Timing Calculation\n\n\
@@ -46,14 +50,21 @@ impl Tool for TimingCalculator {
             args.calc_type, args.clock_freq, args.target
         );
         
-        Ok(ToolResult::Success(calculation))
+        ToolResult::success(calculation)
     }
-    
-    fn name(&self) -> &str {
+}
+
+impl ToolDescription for TimingCalculator {
+    fn name(&self) -> &'static str {
         "timing_calculator"
     }
     
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Calculate timing parameters, prescalers, and dividers for hardware peripherals like UART, timers, PWM, and clocks."
+    }
+    
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::to_value(schemars::schema_for!(TimingCalculatorArgs))
+            .unwrap_or_else(|_| serde_json::json!({}))
     }
 }

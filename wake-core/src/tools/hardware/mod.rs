@@ -6,11 +6,6 @@ pub mod circuit_analyzer;
 pub mod pinout_mapper;
 pub mod timing_calculator;
 
-use wake_llm::tools::{Tool, ToolArguments, ToolCall, ToolResult};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use async_trait::async_trait;
-
 // Re-export all hardware tools
 pub use datasheet_analyzer::DatasheetAnalyzer;
 pub use driver_generator::DriverGenerator;
