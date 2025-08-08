@@ -18,7 +18,7 @@
 
 module.exports = {
   name: 'wake',
-  version: '0.1.3',
+  version: '0.1.4',
   description: 'Wake - A hardware-first coding agent by Wind',
   
   // This package is primarily a CLI tool

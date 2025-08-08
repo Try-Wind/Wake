@@ -1,6 +1,6 @@
 {
   "name": "@trywind/wake",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Wake - A hardware-first coding agent by Wind",
   "main": "index.js",
   "bin": {

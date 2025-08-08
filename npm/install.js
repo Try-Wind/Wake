@@ -5,7 +5,7 @@ const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 
-const RELEASE_VERSION = 'v0.1.3';
+const RELEASE_VERSION = 'v0.1.4';
 const REPO = 'Try-Wind/Wake';
 
 // Detect platform and architecture
@@ -31,61 +31,82 @@ function getPlatform() {
   };
 }
 
-// Download file from URL
+// Download file from URL with better error handling
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     console.log(`Downloading Wake from ${url}...`);
     
-    const file = fs.createWriteStream(dest);
+    // Delete existing file if it exists
+    if (fs.existsSync(dest)) {
+      fs.unlinkSync(dest);
+    }
     
-    https.get(url, (response) => {
-      if (response.statusCode === 302 || response.statusCode === 301) {
-        // Follow redirect
-        https.get(response.headers.location, (response) => {
-          if (response.statusCode !== 200) {
-            reject(new Error(`Failed to download: ${response.statusCode}`));
-            return;
-          }
-          
-          const totalSize = parseInt(response.headers['content-length'], 10);
-          let downloadedSize = 0;
-          
-          response.on('data', (chunk) => {
-            downloadedSize += chunk.length;
-            const progress = ((downloadedSize / totalSize) * 100).toFixed(1);
-            process.stdout.write(`\rDownloading... ${progress}%`);
-          });
-          
-          response.pipe(file);
-          
-          file.on('finish', () => {
-            file.close();
-            console.log('\nDownload complete!');
-            resolve();
-          });
-        }).on('error', reject);
-      } else if (response.statusCode !== 200) {
-        reject(new Error(`Failed to download: ${response.statusCode}`));
-        return;
-      } else {
+    const file = fs.createWriteStream(dest, { mode: 0o755 });
+    
+    const download = (downloadUrl) => {
+      https.get(downloadUrl, (response) => {
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          // Follow redirect
+          file.close();
+          fs.unlinkSync(dest);
+          return download(response.headers.location);
+        } else if (response.statusCode !== 200) {
+          file.close();
+          fs.unlinkSync(dest);
+          reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
+          return;
+        }
+        
         const totalSize = parseInt(response.headers['content-length'], 10);
         let downloadedSize = 0;
         
         response.on('data', (chunk) => {
           downloadedSize += chunk.length;
-          const progress = ((downloadedSize / totalSize) * 100).toFixed(1);
-          process.stdout.write(`\rDownloading... ${progress}%`);
+          if (totalSize) {
+            const progress = ((downloadedSize / totalSize) * 100).toFixed(1);
+            process.stdout.write(`\rDownloading... ${progress}%`);
+          }
         });
         
         response.pipe(file);
         
         file.on('finish', () => {
-          file.close();
-          console.log('\nDownload complete!');
-          resolve();
+          file.close(() => {
+            console.log('\nDownload complete!');
+            
+            // Verify the file was written correctly
+            if (!fs.existsSync(dest)) {
+              reject(new Error('Binary file was not created'));
+              return;
+            }
+            
+            const stats = fs.statSync(dest);
+            if (stats.size === 0) {
+              fs.unlinkSync(dest);
+              reject(new Error('Downloaded file is empty'));
+              return;
+            }
+            
+            console.log(`Binary size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+            resolve();
+          });
         });
-      }
-    }).on('error', reject);
+        
+        file.on('error', (err) => {
+          file.close();
+          fs.unlinkSync(dest);
+          reject(err);
+        });
+      }).on('error', (err) => {
+        file.close();
+        if (fs.existsSync(dest)) {
+          fs.unlinkSync(dest);
+        }
+        reject(err);
+      });
+    };
+    
+    download(url);
   });
 }
 
@@ -123,14 +144,42 @@ async function install() {
   }
   
   try {
-    // Download the binary
-    await downloadFile(downloadUrl, binPath);
+    // Check if binary already exists and skip download if it does
+    if (fs.existsSync(binPath)) {
+      const stats = fs.statSync(binPath);
+      if (stats.size > 1000000) { // Binary should be at least 1MB
+        console.log('✅ Wake binary already exists, skipping download');
+        console.log(`Binary size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+      } else {
+        console.log('⚠️  Existing binary seems corrupted, re-downloading...');
+        await downloadFile(downloadUrl, binPath);
+      }
+    } else {
+      // Download the binary
+      await downloadFile(downloadUrl, binPath);
+    }
     
     // Make it executable on Unix-like systems
     if (process.platform !== 'win32') {
       fs.chmodSync(binPath, 0o755);
       console.log('✅ Made binary executable');
+    } else {
+      // On Windows, ensure the file has proper attributes
+      try {
+        fs.chmodSync(binPath, 0o755);
+      } catch (e) {
+        // chmod might not work on Windows, that's okay
+      }
     }
+    
+    // Verify the binary exists and is valid
+    if (!fs.existsSync(binPath)) {
+      throw new Error('Binary was not installed correctly');
+    }
+    
+    const finalStats = fs.statSync(binPath);
+    console.log(`\n✅ Binary installed: ${binPath}`);
+    console.log(`   Size: ${(finalStats.size / 1024 / 1024).toFixed(2)} MB`);
     
     console.log('\n✨ Wake has been successfully installed!');
     console.log('\n📘 Usage:');

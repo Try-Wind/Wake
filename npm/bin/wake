@@ -8,6 +8,20 @@ const fs = require('fs');
 const binaryName = process.platform === 'win32' ? 'wake.exe' : 'wake';
 const binaryPath = path.join(__dirname, binaryName);
 
+// Debug logging (can be enabled with WAKE_DEBUG=1)
+if (process.env.WAKE_DEBUG) {
+  console.log('Wake wrapper debug info:');
+  console.log('  Platform:', process.platform);
+  console.log('  Binary name:', binaryName);
+  console.log('  Binary path:', binaryPath);
+  console.log('  Binary exists:', fs.existsSync(binaryPath));
+  if (fs.existsSync(binaryPath)) {
+    const stats = fs.statSync(binaryPath);
+    console.log('  Binary size:', stats.size, 'bytes');
+    console.log('  Binary mode:', '0' + (stats.mode & parseInt('777', 8)).toString(8));
+  }
+}
+
 // Check if binary exists
 if (!fs.existsSync(binaryPath)) {
   console.error('❌ Wake binary not found!');
@@ -20,10 +34,36 @@ if (!fs.existsSync(binaryPath)) {
 }
 
 // Spawn the actual Wake binary with all arguments
-const wake = spawn(binaryPath, process.argv.slice(2), {
+// On Windows, we need to handle this differently
+const spawnOptions = {
   stdio: 'inherit',
-  env: process.env
-});
+  env: process.env,
+  windowsHide: false
+};
+
+// On Windows, explicitly use shell:false and handle the path properly
+if (process.platform === 'win32') {
+  spawnOptions.shell = false;
+  spawnOptions.windowsVerbatimArguments = true;
+}
+
+let wake;
+try {
+  wake = spawn(binaryPath, process.argv.slice(2), spawnOptions);
+} catch (error) {
+  console.error('❌ Failed to start Wake:', error.message);
+  console.error('\nBinary path:', binaryPath);
+  console.error('Binary exists:', fs.existsSync(binaryPath));
+  
+  if (!fs.existsSync(binaryPath)) {
+    console.error('\n📦 The Wake binary appears to be missing.');
+    console.error('Please try reinstalling:');
+    console.error('  npm uninstall -g @trywind/wake');
+    console.error('  npm install -g @trywind/wake');
+  }
+  
+  process.exit(1);
+}
 
 // Handle process events
 wake.on('error', (error) => {
