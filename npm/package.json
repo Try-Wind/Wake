@@ -1,0 +1,55 @@
+{
+  "name": "@trywind/wake",
+  "version": "0.1.3",
+  "description": "Wake - A hardware-first coding agent by Wind",
+  "main": "index.js",
+  "bin": {
+    "wake": "./bin/wake"
+  },
+  "scripts": {
+    "postinstall": "node install.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Try-Wind/Wake.git"
+  },
+  "keywords": [
+    "wake",
+    "wind",
+    "hardware",
+    "coding-agent",
+    "ai",
+    "cli",
+    "embedded",
+    "iot",
+    "rust"
+  ],
+  "author": "Wind <team@wind.ai>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Try-Wind/Wake/issues"
+  },
+  "homepage": "https://github.com/Try-Wind/Wake#readme",
+  "files": [
+    "bin/",
+    "install.js",
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

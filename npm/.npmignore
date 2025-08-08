@@ -1,0 +1,46 @@
+# Development files
+*.log
+*.tmp
+.DS_Store
+node_modules/
+.npm/
+
+# Git files
+.git/
+.gitignore
+
+# Build files
+target/
+Cargo.lock
+Cargo.toml
+
+# Source code (we only ship binaries)
+src/
+wake-cli/
+wake-core/
+wake-llm/
+wake-macros/
+
+# Documentation source
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.travis.yml
+.gitlab-ci.yml
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Testing
+test/
+tests/
+*.test.js
+
+# Misc
+.env
+.env.*

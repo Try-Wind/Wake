@@ -29,13 +29,23 @@ Wake is a powerful hardware-aware coding assistant built by Wind (a startup foun
 
 ## 🛠 Installation
 
-### Quick Install (Linux/macOS)
+### Quick Install via npm (Recommended) 🚀
+
+```bash
+npm install -g @trywind/wake
+```
+
+That's it! Wake will be installed globally and ready to use.
+
+### Alternative Installation Methods
+
+#### Shell Script (Linux/macOS)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Try-Wind/Wake/main/install.sh | bash
 ```
 
-### Manual Installation
+#### Build from Source
 
 1. **Clone the repository:**
 ```bash
@@ -53,7 +63,16 @@ cargo build --release
 cargo install --path wake-cli
 ```
 
-4. **Configure your AI provider:**
+#### Direct Download
+
+Download pre-built binaries from [GitHub Releases](https://github.com/Try-Wind/Wake/releases/latest):
+- Linux x64: `wake-linux-x64`
+- Windows x64: `wake-windows-x64.exe`
+- macOS: Coming soon
+
+### Post-Installation
+
+After installation, configure your AI provider:
 ```bash
 wake auth
 ```

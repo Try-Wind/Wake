@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+// Determine the binary name based on platform
+const binaryName = process.platform === 'win32' ? 'wake.exe' : 'wake';
+const binaryPath = path.join(__dirname, binaryName);
+
+// Check if binary exists
+if (!fs.existsSync(binaryPath)) {
+  console.error('❌ Wake binary not found!');
+  console.error('\n📦 Please reinstall the package:');
+  console.error('   npm uninstall -g @trywind/wake');
+  console.error('   npm install -g @trywind/wake');
+  console.error('\nIf the problem persists, please report it at:');
+  console.error('   https://github.com/Try-Wind/Wake/issues');
+  process.exit(1);
+}
+
+// Spawn the actual Wake binary with all arguments
+const wake = spawn(binaryPath, process.argv.slice(2), {
+  stdio: 'inherit',
+  env: process.env
+});
+
+// Handle process events
+wake.on('error', (error) => {
+  if (error.code === 'ENOENT') {
+    console.error('❌ Wake binary not found!');
+    console.error('Please reinstall the package.');
+  } else if (error.code === 'EACCES') {
+    console.error('❌ Permission denied!');
+    console.error('The Wake binary might not be executable.');
+    console.error('Try running: chmod +x ' + binaryPath);
+  } else {
+    console.error('❌ Failed to start Wake:', error.message);
+  }
+  process.exit(1);
+});
+
+wake.on('exit', (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+  } else {
+    process.exit(code || 0);
+  }
+});
+
+// Forward signals to the child process
+process.on('SIGINT', () => wake.kill('SIGINT'));
+process.on('SIGTERM', () => wake.kill('SIGTERM'));
