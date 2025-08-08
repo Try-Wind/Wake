@@ -8,17 +8,33 @@ on:
     inputs:
       tag_name:
         description: 'Tag name for release'
-        required: false
-        default: 'v1.0.0'
-
-env:
-  CARGO_TERM_COLOR: always
+        required: true
+        default: 'v0.1.3'
 
 jobs:
-  build-and-release:
-    name: Build and Release
-    runs-on: ubuntu-latest
-    
+  build:
+    name: Build Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: wake
+            name: wake-linux-x64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary: wake
+            name: wake-macos-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: wake
+            name: wake-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: wake.exe
+            name: wake-windows-x64.exe
+
     steps:
       - uses: actions/checkout@v3
       
@@ -26,79 +42,84 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
           override: true
       
-      - name: Build Release Binary
+      - name: Build
         run: |
-          cargo build --release
-          echo "Build completed"
-        continue-on-error: true
+          cd wake-cli
+          cargo build --release --target ${{ matrix.target }}
       
-      - name: Check binary
+      - name: Prepare Binary (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
-          if [ -f "target/release/wake" ]; then
-            echo "Binary found at target/release/wake"
-            ls -la target/release/wake
-            cp target/release/wake wake-linux-amd64
-          else
-            echo "Binary not found, creating placeholder"
-            echo "#!/bin/bash" > wake-linux-amd64
-            echo "echo 'Wake - Hardware Coding Agent (Build pending)'" >> wake-linux-amd64
-            chmod +x wake-linux-amd64
-          fi
+          cd target/${{ matrix.target }}/release
+          mv ${{ matrix.binary }} ../../../${{ matrix.name }}
+          chmod +x ../../../${{ matrix.name }}
       
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare Binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd target\${{ matrix.target }}\release
+          move ${{ matrix.binary }} ..\..\..\${{ matrix.name }}
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
         with:
-          tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
-          release_name: Wake ${{ github.ref_name || github.event.inputs.tag_name }}
-          body: |
-            # Wake - Hardware-First Coding Agent
-            
-            Built by Wind (Founded by Adhyaay Karnwal)
-            
-            ## Features
-            - Generate hardware drivers from specifications
-            - Debug I2C, SPI, UART communication issues  
-            - Analyze circuits and calculate component values
-            - Support for Arduino, STM32, ESP32, Raspberry Pi
-            
-            ## Installation
-            
-            ```bash
-            # Download and install
-            wget https://github.com/Try-Wind/Wake/releases/download/${{ github.ref_name || github.event.inputs.tag_name }}/wake-linux-amd64
-            chmod +x wake-linux-amd64
-            sudo mv wake-linux-amd64 /usr/local/bin/wake
-            
-            # Configure
-            wake auth
-            ```
-            
-            ## Quick Start
-            
-            ```bash
-            wake "Generate Arduino driver for MPU6050"
-            wake "Debug I2C NACK at address 0x68"
-            wake "Calculate UART baud rate for 16MHz clock"
-            ```
-            
-            ## Documentation
-            - [README](https://github.com/Try-Wind/Wake/blob/main/README.md)
-            - [Quick Start Guide](https://github.com/Try-Wind/Wake/blob/main/QUICKSTART.md)
-            - [Hardware Examples](https://github.com/Try-Wind/Wake/blob/main/docs/HARDWARE_EXAMPLES.md)
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            wake-linux-x64/wake-linux-x64
+            wake-macos-x64/wake-macos-x64
+            wake-macos-arm64/wake-macos-arm64
+            wake-windows-x64.exe/wake-windows-x64.exe
           draft: false
           prerelease: false
-      
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: Wake ${{ github.event.inputs.tag_name || github.ref_name }}
+          body: |
+            ## Wake - Hardware-First Coding Agent
+            
+            ### Installation
+            
+            #### Quick Install (Linux/macOS)
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/Try-Wind/Wake/main/install.sh | bash
+            ```
+            
+            #### Manual Download
+            Download the appropriate binary for your platform from the assets below.
+            
+            #### From Source
+            ```bash
+            git clone https://github.com/Try-Wind/Wake.git
+            cd Wake
+            cargo install --path wake-cli
+            ```
+            
+            ### What's New
+            - Initial release of Wake
+            - Hardware interaction capabilities
+            - Multi-platform support
+            
+            ### Documentation
+            - [User Guide](https://github.com/Try-Wind/Wake/blob/main/docs/USER_GUIDE.md)
+            - [Hardware Examples](https://github.com/Try-Wind/Wake/blob/main/docs/HARDWARE_EXAMPLES.md)
+            - [Contributing](https://github.com/Try-Wind/Wake/blob/main/CONTRIBUTING.md)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./wake-linux-amd64
-          asset_name: wake-linux-amd64
-          asset_content_type: application/octet-stream

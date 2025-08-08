@@ -386,7 +386,7 @@ impl App<'_> {
 
         if let Some(ref mut terminal) = self.terminal {
             if height != self.terminal_height {
-                terminal.set_viewport_height(height + 1)?;
+                // terminal.set_viewport_height(height + 1)?; // Method not available in current ratatui version
                 self.terminal_height = height;
             }
 

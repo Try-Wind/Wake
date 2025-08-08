@@ -266,7 +266,7 @@ impl AppAuth {
         if let Some(ref mut terminal) = self.terminal {
             if height != self.height {
                 self.height = height;
-                terminal.set_viewport_height(height)?;
+                // terminal.set_viewport_height(height)?; // Method not available in current ratatui version
             }
 
             terminal.draw(|frame| {
