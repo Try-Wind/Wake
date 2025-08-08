@@ -5,7 +5,7 @@ const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 
-const RELEASE_VERSION = 'v0.1.4';
+const RELEASE_VERSION = 'v0.1.5';
 const REPO = 'Try-Wind/Wake';
 
 // Detect platform and architecture

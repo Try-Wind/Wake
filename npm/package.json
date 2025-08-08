@@ -1,13 +1,14 @@
 {
   "name": "@trywind/wake",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Wake - A hardware-first coding agent by Wind",
   "main": "index.js",
   "bin": {
     "wake": "./bin/wake"
   },
   "scripts": {
-    "postinstall": "node install.js",
+    "postinstall": "node install.js || echo 'Postinstall failed - run wake to download binary'",
+    "download": "node download-wake.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -34,6 +35,7 @@
   "files": [
     "bin/",
     "install.js",
+    "download-wake.js",
     "index.js",
     "README.md",
     "LICENSE"

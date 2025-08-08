@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -22,15 +22,49 @@ if (process.env.WAKE_DEBUG) {
   }
 }
 
-// Check if binary exists
+// Check if binary exists, if not try to download it
 if (!fs.existsSync(binaryPath)) {
-  console.error('❌ Wake binary not found!');
-  console.error('\n📦 Please reinstall the package:');
-  console.error('   npm uninstall -g @trywind/wake');
-  console.error('   npm install -g @trywind/wake');
-  console.error('\nIf the problem persists, please report it at:');
-  console.error('   https://github.com/Try-Wind/Wake/issues');
-  process.exit(1);
+  console.log('⚠️  Wake binary not found. Attempting to download...');
+  console.log('');
+  
+  // Try to run the install script
+  const installScript = path.join(path.dirname(__dirname), 'install.js');
+  
+  if (fs.existsSync(installScript)) {
+    try {
+      console.log('Running installation script...');
+      // Run the install script synchronously
+      execSync(`node "${installScript}"`, {
+        stdio: 'inherit',
+        cwd: path.dirname(installScript)
+      });
+      
+      // Check if binary now exists
+      if (!fs.existsSync(binaryPath)) {
+        throw new Error('Binary still not found after installation attempt');
+      }
+      
+      console.log('✅ Wake binary downloaded successfully!');
+      console.log('');
+    } catch (error) {
+      console.error('❌ Failed to download Wake binary:', error.message);
+      console.error('\n📦 Please try manual installation:');
+      console.error('   1. Uninstall: npm uninstall -g @trywind/wake');
+      console.error('   2. Clear cache: npm cache clean --force');
+      console.error('   3. Reinstall: npm install -g @trywind/wake');
+      console.error('\nOr download directly from:');
+      console.error('   https://github.com/Try-Wind/Wake/releases/latest');
+      process.exit(1);
+    }
+  } else {
+    console.error('❌ Installation script not found!');
+    console.error('\n📦 Please reinstall the package:');
+    console.error('   npm uninstall -g @trywind/wake');
+    console.error('   npm install -g @trywind/wake');
+    console.error('\nIf the problem persists, please report it at:');
+    console.error('   https://github.com/Try-Wind/Wake/issues');
+    process.exit(1);
+  }
 }
 
 // Spawn the actual Wake binary with all arguments
