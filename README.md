@@ -4,6 +4,8 @@
 
 Wake is a powerful hardware-aware coding assistant built by Wind (a startup founded by Adhyaay Karnwal). It's designed specifically for embedded systems, IoT development, circuit design, and hardware programming. Wake understands hardware components, can generate device drivers from datasheets, debug hardware issues, and help with everything from Arduino projects to complex embedded systems.
 
+I added this but forgot to commit the changes: This repo is forked from [Gemini Cli](https://github.com/google-gemini/gemini-cli) 
+
 ## 🚀 Features
 
 ### Hardware-Specific Capabilities
